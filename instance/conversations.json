@@ -1,0 +1,46 @@
+[
+  {
+    "id": "conv_init_1",
+    "title": "Streaming AI Architecture & SSE",
+    "pinned": true,
+    "createdAt": "2026-10-28T10:00:00.000Z",
+    "updatedAt": "2026-10-28T10:05:00.000Z",
+    "messages": [
+      {
+        "id": "msg_u_1",
+        "role": "user",
+        "content": "Explain how Server-Sent Events (SSE) compare to WebSockets for real-time streaming AI responses.",
+        "timestamp": "2026-10-28T10:00:00.000Z"
+      },
+      {
+        "id": "msg_a_1",
+        "role": "assistant",
+        "content": "Server-Sent Events (SSE) provide an elegant, unidirectional HTTP streaming protocol that fits LLM generation workflows.\n\n### Key Advantages of SSE:\n1. **Native HTTP/2 Multiplexing:** Works over standard HTTP ports without special reverse proxy protocol upgrades.\n2. **Automatic Reconnection:** Browsers natively manage network drops via the `EventSource` protocol.\n3. **Simpler Mental Model:** Unidirectional streaming matches the server-to-client token delivery model without WebSocket handshake overhead.",
+        "timestamp": "2026-10-28T10:01:00.000Z",
+        "status": "complete"
+      }
+    ]
+  },
+  {
+    "id": "conv_init_2",
+    "title": "Thoughtful AI Assistant Guidelines",
+    "pinned": false,
+    "createdAt": "2026-10-27T16:30:00.000Z",
+    "updatedAt": "2026-10-27T16:35:00.000Z",
+    "messages": [
+      {
+        "id": "msg_u_2",
+        "role": "user",
+        "content": "What principles define a thoughtful, human-centric AI assistant?",
+        "timestamp": "2026-10-27T16:30:00.000Z"
+      },
+      {
+        "id": "msg_a_2",
+        "role": "assistant",
+        "content": "A thoughtful AI assistant is defined by restraint, clarity, and deep user agency:\n\n- **Substance over Fluff:** Direct, well-reasoned answers without generic pleasantries.\n- **Transparent Latency:** Respecting user patience with steady token pacing and responsive controls.\n- **Private & Local-First:** Keeping conversation history strictly within user-controlled storage.",
+        "timestamp": "2026-10-27T16:31:00.000Z",
+        "status": "complete"
+      }
+    ]
+  }
+]

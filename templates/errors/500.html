@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;text-align:center;padding:20px;">
+  <h1 style="font-size:32px;font-weight:600;margin:0;color:var(--error);">Something went wrong</h1>
+  <p style="color:var(--text-muted);margin:0;max-width:40ch;">An unexpected internal error occurred on the server. Please try again later.</p>
+  <a href="/" style="display:inline-flex;padding:10px 20px;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:600;text-decoration:none;">Back to Chatora</a>
+</div>
+{% endblock %}

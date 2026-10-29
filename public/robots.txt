@@ -1,0 +1,15 @@
+# robots.txt for Chatora AI
+User-agent: *
+Allow: /
+Allow: /faq
+Allow: /privacy
+Allow: /terms
+Allow: /cookies
+Allow: /contact
+
+# Disallow private API endpoints, health probes, and internal session data
+Disallow: /api/
+Disallow: /health
+Disallow: /thank-you
+
+Sitemap: https://ais-dev-sulvpnnqk7yvf27aa3v7hc-554296802136.asia-east1.run.app/sitemap.xml

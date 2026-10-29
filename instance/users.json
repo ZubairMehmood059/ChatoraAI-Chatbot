@@ -1,0 +1,9 @@
+[
+  {
+    "id": "user_25e916e2",
+    "email": "auditor_1793132594609@example.com",
+    "salt": "2fb95a2b3eae096db9a0442f03abbdea",
+    "passwordHash": "cd98d30367afac788788c74002f1a0c529408d806b2dbd44ba6dc7a005369f255d838e9393d8472ce02285fc76e8c6e69622eec76eb349e7c8360872d470a93d",
+    "createdAt": "2026-10-27T20:23:14.612Z"
+  }
+]

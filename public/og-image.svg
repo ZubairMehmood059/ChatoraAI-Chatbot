@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F6F3EB"/>
+      <stop offset="100%" stop-color="#EBE7DC"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#315C43"/>
+      <stop offset="100%" stop-color="#264A35"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#DEDCD2" stroke-width="1" opacity="0.6"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+
+  <!-- Outer Border Frame -->
+  <rect x="40" y="40" width="1120" height="550" rx="24" fill="none" stroke="#DEDCD2" stroke-width="2"/>
+
+  <!-- Left Hero Panel (Bento) -->
+  <rect x="70" y="70" width="580" height="490" rx="20" fill="url(#cardGrad)"/>
+  
+  <!-- Logo inside Hero Panel -->
+  <g transform="translate(110, 110)">
+    <rect width="56" height="56" rx="16" fill="#F6F3EB"/>
+    <path fill="#315C43" d="M14 8h28a7 7 0 0 1 7 7v16a7 7 0 0 1-7 7H28l-9 8v-8h-5a7 7 0 0 1-7-7V15a7 7 0 0 1 7-7z"/>
+    <path fill="#F6F3EB" d="M28 15l2.4 6 6 2.4-6 2.4L28 32l-2.4-6-6-2.4 6-2.4z"/>
+  </g>
+
+  <!-- Hero Titles -->
+  <text x="110" y="225" font-family="'Inter', system-ui, sans-serif" font-weight="700" font-size="48" fill="#F6F3EB" letter-spacing="-1">Chatora AI</text>
+  <text x="110" y="270" font-family="'Inter', system-ui, sans-serif" font-weight="500" font-size="22" fill="#A7B7A0">Thoughtful, streaming AI conversation</text>
+
+  <text x="110" y="340" font-family="'Inter', system-ui, sans-serif" font-weight="400" font-size="18" fill="#E6ECDF" width="500">
+    <tspan x="110" dy="0">Experience real-time AI reasoning with Bento Grid</tspan>
+    <tspan x="110" dy="28">curated starter prompts, document text analysis, and</tspan>
+    <tspan x="110" dy="28">personalized response styling.</tspan>
+  </text>
+
+  <!-- Tag Pills inside Hero -->
+  <g transform="translate(110, 470)">
+    <rect width="130" height="34" rx="10" fill="#242922" opacity="0.4"/>
+    <text x="65" y="22" font-family="'Inter', system-ui, sans-serif" font-weight="600" font-size="13" fill="#D7A64A" text-anchor="middle">Gemini 3.8 Flash</text>
+
+    <rect x="142" width="130" height="34" rx="10" fill="#242922" opacity="0.4"/>
+    <text x="207" y="22" font-family="'Inter', system-ui, sans-serif" font-weight="600" font-size="13" fill="#F6F3EB" text-anchor="middle">Streaming SSE</text>
+
+    <rect x="284" width="140" height="34" rx="10" fill="#242922" opacity="0.4"/>
+    <text x="354" y="22" font-family="'Inter', system-ui, sans-serif" font-weight="600" font-size="13" fill="#A7B7A0" text-anchor="middle">Document Analysis</text>
+  </g>
+
+  <!-- Right Bento Cards Stack -->
+  <!-- Card 1 -->
+  <g transform="translate(680, 70)">
+    <rect width="450" height="150" rx="18" fill="#FFFFFF" stroke="#DEDCD2" stroke-width="1.5"/>
+    <circle cx="36" cy="40" r="14" fill="#E6ECDF"/>
+    <path d="M30 40h12M36 34v12" stroke="#315C43" stroke-width="2" stroke-linecap="round"/>
+    <text x="62" y="44" font-family="'Inter', system-ui, sans-serif" font-weight="600" font-size="16" fill="#242922">Categorized Starter Prompts</text>
+    <text x="36" y="80" font-family="'Inter', system-ui, sans-serif" font-weight="400" font-size="14" fill="#686B61">
+      <tspan x="36" dy="0">Study, Coding, Writing, Research, and Productivity</tspan>
+      <tspan x="36" dy="22">prompts ready to customize in one click.</tspan>
+    </text>
+  </g>
+
+  <!-- Card 2 -->
+  <g transform="translate(680, 240)">
+    <rect width="450" height="150" rx="18" fill="#FFFFFF" stroke="#DEDCD2" stroke-width="1.5"/>
+    <circle cx="36" cy="40" r="14" fill="#FDF3DD"/>
+    <path d="M36 32l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#D7A64A"/>
+    <text x="62" y="44" font-family="'Inter', system-ui, sans-serif" font-weight="600" font-size="16" fill="#242922">Zero-Forbidden-Color Palette</text>
+    <text x="36" y="80" font-family="'Inter', system-ui, sans-serif" font-weight="400" font-size="14" fill="#686B61">
+      <tspan x="36" dy="0">High contrast, accessible warm forest &amp; amber design.</tspan>
+      <tspan x="36" dy="22">Engineered strictly without blue or purple tones.</tspan>
+    </text>
+  </g>
+
+  <!-- Card 3 -->
+  <g transform="translate(680, 410)">
+    <rect width="450" height="150" rx="18" fill="#FFFFFF" stroke="#DEDCD2" stroke-width="1.5"/>
+    <circle cx="36" cy="40" r="14" fill="#E6ECDF"/>
+    <path d="M30 40l4 4 8-8" stroke="#315C43" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <text x="62" y="44" font-family="'Inter', system-ui, sans-serif" font-weight="600" font-size="16" fill="#242922">Secure &amp; Privacy-Focused</text>
+    <text x="36" y="80" font-family="'Inter', system-ui, sans-serif" font-weight="400" font-size="14" fill="#686B61">
+      <tspan x="36" dy="0">PBKDF2 salted security, path-traversal safeguards,</tspan>
+      <tspan x="36" dy="22">rate limiting, and one-click chat history export.</tspan>
+    </text>
+  </g>
+</svg>

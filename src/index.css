@@ -1,0 +1,283 @@
+@import "tailwindcss";
+
+/* ===== Design Tokens (design-final.md) ===== */
+:root {
+  color-scheme: light;
+  --bg: #F6F3EB;
+  --sidebar: #EFEEE6;
+  --surface: #FFFFFF;
+  --surface-subtle: #EFEEE6;
+  --text: #242922;
+  --text-muted: #686B61;
+  --primary: #315C43;
+  --primary-hover: #264A35;
+  --on-primary: #FFFFFF;
+  --sage: #A7B7A0;
+  --amber: #D7A64A;
+  --border: #DEDCD2;
+  --border-strong: #858880;
+  --error: #A63D40;
+  --error-surface: #F7E6E4;
+  --on-error: #FFFFFF;
+  --user-msg: #E6ECDF;
+  --hero-bg: #315C43;
+  --hero-text: #F6F3EB;
+  --focus: #315C43;
+  --selection: #C9D5C3;
+  --scrim: rgba(36, 41, 34, 0.48);
+  --code-bg: #242922;
+  --code-text: #F3F0E8;
+  --code-border: #3A4138;
+  --code-label: #B4B8AC;
+  --syn-keyword: #D7A64A;
+  --syn-string: #A7B7A0;
+  --syn-number: #E0976A;
+  --syn-function: #E8D9B0;
+  --syn-builtin: #8DB58B;
+  --syn-comment: #9A9F92;
+  --syn-punct: #B4B8AC;
+  --shadow: 0 1px 2px rgba(36, 41, 34, 0.06), 0 6px 20px rgba(36, 41, 34, 0.08);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0E110F;
+  --sidebar: #131714;
+  --surface: #1A1F1B;
+  --surface-subtle: #232924;
+  --text: #F5F3EC;
+  --text-muted: #B8BCAE;
+  --primary: #A7B7A0;
+  --primary-hover: #BAC9B3;
+  --on-primary: #0E110F;
+  --sage: #A7B7A0;
+  --amber: #D7A64A;
+  --border: #2A322B;
+  --border-strong: #424D44;
+  --error: #E69A96;
+  --error-surface: #362222;
+  --on-error: #0E110F;
+  --user-msg: #1F2821;
+  --hero-bg: #1A261F;
+  --hero-text: #F5F3EC;
+  --focus: #BAC9B3;
+  --selection: #344739;
+  --scrim: rgba(5, 7, 5, 0.72);
+  --code-bg: #121513;
+  --code-border: #2A322B;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.38);
+}
+
+/* ===== Base Overrides & Accessibility ===== */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+  accent-color: var(--primary);
+  caret-color: var(--primary);
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--text);
+}
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Ensure textarea itself has zero border or outline */
+textarea,
+textarea:focus,
+textarea:focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a:visited {
+  color: var(--primary);
+}
+
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  -webkit-text-fill-color: var(--text);
+}
+
+* {
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+/* ===== Type Scale & Consistency Utilities ===== */
+.type-h1 {
+  font-size: 1.75rem; /* 28px */
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+@media (min-width: 640px) {
+  .type-h1 {
+    font-size: 2.25rem; /* 36px */
+  }
+}
+
+.type-h2 {
+  font-size: 1.25rem; /* 20px */
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.type-h3 {
+  font-size: 1rem; /* 16px */
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.type-body {
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.6;
+}
+
+.type-caption {
+  font-size: 0.75rem; /* 12px */
+  line-height: 1.4;
+}
+
+.hover-surface-subtle:hover {
+  background-color: var(--surface-subtle) !important;
+}
+
+/* ===== Shared Standardized Button System (Max 4 Styles) ===== */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background-color: var(--primary);
+  color: var(--on-primary);
+  border: 1px solid transparent;
+  transition: opacity 0.15s ease;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  opacity: 0.92;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background-color: var(--surface-subtle);
+  border-color: var(--border-strong);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  background-color: var(--surface-subtle);
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background-color: var(--error-surface);
+  color: var(--error);
+  border: 1px solid var(--error);
+  transition: opacity 0.15s ease;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  opacity: 0.88;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation: none !important;
+  }
+}
+
+/* Pulsing Dots for real waiting state */
+@keyframes chatoraDot {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.chatora-dot {
+  animation: chatoraDot 1.2s infinite ease-in-out;
+}
+
+/* Print view */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}

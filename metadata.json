@@ -1,0 +1,6 @@
+{
+  "name": "Chatora AI",
+  "description": "A premium, minimalist AI chatbot web application with Bento Grid layout, intelligent conversation management, and real-time streaming.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
