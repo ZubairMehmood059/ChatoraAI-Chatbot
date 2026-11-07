@@ -2,87 +2,143 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-315C43.svg)](#)
 [![Design](https://img.shields.io/badge/design-Bento%20Grid%20%2B%20Minimalism-315C43.svg)](#)
-[![Model](https://img.shields.io/badge/model-Gemini%203.8%20Flash-315C43.svg)](#)
+[![Backend](https://img.shields.io/badge/backend-Python%20FastAPI-315C43.svg)](#)
+[![Database](https://img.shields.io/badge/database-Supabase%20PostgreSQL-315C43.svg)](#)
 [![Build](https://img.shields.io/badge/build-passing-315C43.svg)](#)
 
-Chatora AI is a production-grade, minimalist AI chatbot web application built with a purposeful **Bento Grid layout**, real-time **Server-Sent Events (SSE) streaming**, intelligent conversation management, and strict **zero-forbidden-color compliance** (warm forest green, ivory, and charcoal palette with zero blue or purple).
+Chatora AI is a production-grade, minimalist AI chatbot web application built with a purposeful **Bento Grid layout**, real-time **Server-Sent Events (SSE) streaming** powered by **Google Gemini**, **Supabase PostgreSQL** with strict Row Level Security (RLS), and a **FastAPI** asynchronous Python backend.
 
 ---
 
-## Architecture Summary
+## Architecture
 
-Chatora AI supports two coordinated execution targets:
-
-1. **Google AI Studio Target (Authoritative in Cloud Run):**
-   - **Engine:** Full-stack Express 4 + Vite running on port 3000 (`server.ts`).
-   - **Frontend:** React 19, Tailwind CSS 4, Lucide Icons.
-   - **AI Integration:** `@google/genai` TypeScript SDK with server-side proxy security and client-disconnect cleanup.
-   - **HMR WebSocket Fix:** Configured with `hmr: false` behind Cloud Run to eliminate `WebSocket closed without opened` errors.
-
-2. **Python Standalone Target (Deployment Export):**
-   - **Engine:** Python 3.10+ Flask application factory (`app.py`, `app/`).
-   - **Database:** SQLAlchemy ORM models (`Conversation`, `ChatMessage`, `User`) with SQLite/PostgreSQL support.
-   - **AI Integration:** `google-genai` Python SDK (`app/services/ai_service.py`).
-   - **Templates:** Jinja2 templates in `templates/` and static assets in `static/`.
+- **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS 4 (Deployed on Netlify / Vercel / Cloud Run).
+- **Backend:** Python 3.13 FastAPI with async SQLAlchemy 2.0 and asyncpg (Deployable to Render, Railway, AWS, or Docker).
+- **AI Engine:** Official `google-genai` Python SDK streaming tokens via Server-Sent Events (`POST /api/chat`).
+- **Database:** Supabase PostgreSQL with user-level data isolation via Row Level Security (RLS) policies.
 
 ---
 
 ## Features
 
-- **Bento Grid Welcome Experience:** Four prompt suggestion cards (Learn something hero, Write better, Solve a problem, Explore ideas) that populate the composer and auto-select bracketed placeholder text.
-- **Server-Side Gemini 3.8 Flash Streaming:** Fast SSE streaming with multi-turn context retention, adjustable response styles (*Concise*, *Balanced*, *Detailed*), auto-titling, and Stop generating support.
-- **Responsive Navigation:** Collapsible 260px sidebar, 72px rail, and mobile off-canvas drawer with backdrop scrim. Real-time search (`Ctrl + K`) and chronological grouping.
-- **Code & Markdown Formatting:** Clean markdown rendering with custom zero-blue syntax highlighting and copy code feedback.
-- **File Attachments:** Text and markdown document uploads up to 2MB with server-side extraction.
-- **Data Ownership & Export:** Export conversations as Text (`.txt`) or Markdown (`.md`), dedicated print view (`@media print`), and full deletion controls.
+- **Bento Grid Welcome Experience:** Four prompt suggestion cards that auto-populate composer templates with bracketed selections.
+- **Real-Time Gemini SSE Streaming:** Server-side proxy with multi-turn context retention, adjustable response styles (_Concise_, _Balanced_, _Detailed_), title auto-generation, and **Stop Generating** client-disconnect support.
+- **Supabase Authentication & Isolation:** Session management supporting email sign-up/sign-in, bearer JWT verification, and strict user-level data isolation preventing cross-user access (BOLA/IDOR).
+- **Document Processing:** Client-side document upload modal extracting plain text, Markdown, code, and JSON with 2MB limits and server sanitization.
+- **Feedback & Contact Form:** Feedback submissions with honeypot spam protection and SHA-256 IP hashing.
+- **Zero Forbidden Colors:** Strictly follows warm forest green, ivory, and charcoal palette (zero blue or purple).
 
 ---
 
-## Quick Start
+## Local Development Setup
 
-### Running in Node.js (Full-Stack Dev Server)
+### 1. Prerequisites
+
+- Python 3.11+
+- Node.js 20+ and npm
+
+### 2. Environment Configuration
+
+Copy the example environment configuration:
 
 ```bash
-# 1. Install dependencies
+cp .env.example .env
+```
+
+Configure your secrets in `.env`:
+- `GEMINI_API_KEY`: Free-tier API key from [Google AI Studio](https://aistudio.google.com/).
+- `SUPABASE_URL`: Supabase project URL (`https://your-ref.supabase.co`).
+- `SUPABASE_ANON_KEY`: Supabase anon key.
+- `DATABASE_URL`: Asynchronous PostgreSQL connection string:
+  `postgresql+asyncpg://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres`
+  *(If left blank, a local SQLite async database will automatically be used for development).*
+
+### 3. Database Migration
+
+Apply the initial schema and Row Level Security policies to Supabase:
+- **Option A:** Open `backend/migrations/001_initial_schema.sql` and run it in the [Supabase Dashboard SQL Editor](https://supabase.com/dashboard).
+- **Option B:** Run the Python migration utility:
+  ```bash
+  python -m backend.app.scripts.migrate
+  ```
+
+### 4. Running the Backend (FastAPI)
+
+```bash
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Run FastAPI server on port 8000
+uvicorn backend.app.main:create_app --factory --reload --port 8000
+```
+
+FastAPI interactive documentation will be available at `http://localhost:8000/docs`.
+
+### 5. Running the Frontend (React + Vite)
+
+```bash
+# Install npm dependencies
 npm install
 
-# 2. Start full-stack server on port 3000
+# Run frontend development server
 npm run dev
 ```
 
-Visit `http://localhost:3000`.
+---
 
-### Running in Python (Flask Backend)
+## Running the Automated Test Suite
+
+### Python Backend Tests (26 test cases)
 
 ```bash
-# 1. Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Start Flask app on port 5000
-python app.py
+.venv\Scripts\python -m pytest backend/tests -v
 ```
 
-Visit `http://localhost:5000`.
+Includes:
+- Health check, security headers, CORS, and JSON 404 fallback.
+- Supabase bearer authentication and demo JWT parsing.
+- Conversation CRUD, search filter, and cross-user authorization (BOLA/IDOR).
+- Database foreign key cascade deletion and feedback persistence.
+- Gemini SSE streaming lifecycle, auto-titling, and rate limit error handling.
+- Full end-to-end user journey test.
+- Document upload validation, 2MB size enforcement, and path traversal sanitization.
+
+### Frontend TypeScript Verification & Build
+
+```bash
+npm run lint  # tsc --noEmit
+npx vite build
+```
 
 ---
 
-## Documentation
+## Production Deployment
 
-Full architectural guides, audits, and fix reports are available in the [`docs/`](./docs) folder:
-- [**Codebase Audit**](./docs/CODEBASE_AUDIT.md) — Comprehensive architecture and backend reconciliation.
-- [**Bug Fix Report**](./docs/BUG_FIX_REPORT.md) — Root causes, fixes, and test results.
-- [**Architecture**](./docs/ARCHITECTURE.md) — Authoritative backend details and request flow.
-- [**Configuration**](./docs/CONFIGURATION.md) — Environment variables, local setup, and troubleshooting.
-- [**User Guide**](./docs/USER_GUIDE.md) — Feature walkthroughs, shortcuts, and tips.
-- [**Security Guide**](./docs/SECURITY.md) — Secrets isolation, input limits, and hardening.
-- [**Changelog**](./docs/CHANGELOG.md) — Version history and releases.
+### Frontend (Netlify)
 
----
+1. Connect your repository to Netlify.
+2. Build Settings:
+   - **Build command:** `npm run build`
+   - **Publish directory:** `dist`
+3. Environment Variables in Netlify:
+   - `VITE_API_URL`: URL of your deployed FastAPI backend (e.g., `https://api.chatora.ai`).
+   - `VITE_SUPABASE_URL`: Your Supabase Project URL.
+   - `VITE_SUPABASE_ANON_KEY`: Your Supabase Anon Key.
 
-## License
+### Backend (Render, Railway, or Docker)
 
-Apache-2.0
+Deploy using `Dockerfile.backend` or direct command:
+- **Build command:** `pip install -r backend/requirements.txt`
+- **Start command:** `uvicorn backend.app.main:create_app --factory --host 0.0.0.0 --port 8000`
+- **Environment Variables:**
+  - `GEMINI_API_KEY`: Google Gemini API key.
+  - `SUPABASE_URL`: Supabase project URL.
+  - `SUPABASE_ANON_KEY`: Supabase anon key.
+  - `DATABASE_URL`: Supabase `postgresql+asyncpg://...` connection string.
+  - `CORS_ORIGINS`: Comma-separated list including your Netlify domain.

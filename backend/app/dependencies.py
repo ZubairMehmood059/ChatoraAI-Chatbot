@@ -1,0 +1,93 @@
+import logging
+import re
+from typing import Optional
+from fastapi import Depends, HTTPException, Request, status
+import httpx
+from pydantic import BaseModel
+from backend.app.config import Settings, get_settings
+
+logger = logging.getLogger("chatora_auth")
+
+
+class UserContext(BaseModel):
+    """Authenticated user context extracted from validated bearer token."""
+
+    id: str
+    email: str
+    role: str = "authenticated"
+
+
+async def get_optional_user(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> Optional[UserContext]:
+    """Extract authenticated user if bearer token is present; returns None if unauthenticated."""
+    auth_header = request.headers.get("authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header[7:].strip()
+    if not token:
+        return None
+
+    # 1. Handle local demo tokens (e.g., demo_jwt_user_alice_12345)
+    if token.startswith("demo_jwt_"):
+        raw_demo = token[len("demo_jwt_") :]
+        demo_id = re.sub(r"_\d+$", "", raw_demo) or "user_demo"
+        return UserContext(
+            id=demo_id,
+            email=f"{demo_id}@chatora.ai",
+            role="authenticated",
+        )
+
+    # 2. Handle Supabase JWT verification when configured
+    if settings.is_supabase_configured:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(
+                    f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/user",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "apikey": settings.SUPABASE_ANON_KEY or settings.SUPABASE_SERVICE_ROLE_KEY,
+                    },
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    return UserContext(
+                        id=data.get("id"),
+                        email=data.get("email", "user@chatora.ai"),
+                        role=data.get("role", "authenticated"),
+                    )
+                else:
+                    logger.warning("Supabase auth verification failed with HTTP %s", res.status_code)
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid or expired authentication token",
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Supabase auth probe error: %s", str(e))
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Failed to verify authentication token",
+            )
+
+    # 3. Unrecognized token without valid provider
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired authentication token",
+    )
+
+
+async def get_current_user(
+    user: Optional[UserContext] = Depends(get_optional_user),
+) -> UserContext:
+    """Enforce that the request is authenticated with a valid user token."""
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to access this resource",
+        )
+    return user
+

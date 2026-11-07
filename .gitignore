@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+.venv/
+__pycache__/
+*.pyc
+*.db
+instance/*.db
+.pytest_cache/
+.agents/
+.claude/
+agent/
+skills-lock.json
+
+

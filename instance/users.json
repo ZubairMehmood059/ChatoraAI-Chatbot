@@ -5,5 +5,19 @@
     "salt": "2fb95a2b3eae096db9a0442f03abbdea",
     "passwordHash": "cd98d30367afac788788c74002f1a0c529408d806b2dbd44ba6dc7a005369f255d838e9393d8472ce02285fc76e8c6e69622eec76eb349e7c8360872d470a93d",
     "createdAt": "2026-10-27T20:23:14.612Z"
+  },
+  {
+    "id": "user_894564011544",
+    "email": "testuser_local_77@example.com",
+    "salt": "efc88d16a85aa0eb7a5c8df9a6eaccfd",
+    "passwordHash": "8619c62b5ba0b48d132dd00f9ef8eb1dcbba657307a9bd38293131bb5b9f6723b5acf9980b3647f015745d877608e9d3eec138126dd5cf5ab5d5a211ad73926d",
+    "createdAt": "2026-11-07T12:49:40.087727+00:00"
+  },
+  {
+    "id": "user_0a0a1a62d95b",
+    "email": "testuser_local_c5428143@example.com",
+    "salt": "e985884c7684ddf34eb8e078c9c4f805",
+    "passwordHash": "2ad40bae5ff2a5ff523507aadaeac0a2ef231445b841bfac2244145253f87d65b3c0235be395a03c81ee330910b3ba490e03eaee208d44d7d518c8dc1768d544",
+    "createdAt": "2026-11-07T12:52:58.592720+00:00"
   }
 ]

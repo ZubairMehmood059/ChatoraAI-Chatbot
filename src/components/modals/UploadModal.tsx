@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { X, UploadCloud, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AttachedFile } from '../Composer';
+import { api } from '../../services/api';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -35,23 +36,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
     reader.onload = async () => {
       try {
         const textContent = reader.result as string;
-        // Verify with server endpoint
-        const resp = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileContent: textContent,
-            fileType: file.type,
-          }),
-        });
-
-        if (!resp.ok) {
-          const data = await resp.json();
-          throw new Error(data.error || 'Server rejected file upload');
-        }
-
-        const data = await resp.json();
+        // Verify with server endpoint via api client
+        const data = await api.uploadFile(file.name, textContent, file.type);
         onFileAttached({
           name: file.name,
           size: file.size,

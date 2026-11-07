@@ -21,6 +21,14 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# Optional: Proxy /api/* to external Python backend if VITE_API_URL is omitted or deployed as unified domain
+# Replace https://your-chatora-backend.onrender.com with your live FastAPI deployment URL
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://your-chatora-backend.onrender.com/api/:splat"
+#   status = 200
+#   force = true
+
 # SPA Fallback: Direct all non-file route traffic to index.html for client-side routing
 [[redirects]]
   from = "/*"
