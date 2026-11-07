@@ -7,7 +7,8 @@ interface TopbarProps {
   onOpenMobileMenu: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
-  isAiConfigured: boolean;
+  backendStatus?: 'checking' | 'online' | 'offline';
+  modelName?: string;
   hasActiveConversation: boolean;
   onExport: (format: 'txt' | 'md') => void;
   onPrint: () => void;
@@ -22,7 +23,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   onOpenMobileMenu,
   theme,
   onToggleTheme,
-  isAiConfigured,
+  backendStatus = 'checking',
+  modelName = 'gemini-3.5-flash-lite',
   hasActiveConversation,
   onExport,
   onPrint,
@@ -35,6 +37,31 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+
+  const isOnline = backendStatus === 'online';
+  const isChecking = backendStatus === 'checking';
+
+  const statusLabel = isChecking ? 'Connecting...' : isOnline ? 'Active' : 'Offline';
+  const statusTitle = isChecking
+    ? 'Checking connection to AI backend...'
+    : isOnline
+    ? `AI System: ${modelName} Online`
+    : 'Backend Offline: verify FastAPI server is running';
+  const indicatorColor = isChecking
+    ? 'var(--warning, #f59e0b)'
+    : isOnline
+    ? 'var(--primary)'
+    : 'var(--error)';
+  const badgeBg = isChecking
+    ? 'var(--surface-subtle)'
+    : isOnline
+    ? 'var(--surface-subtle)'
+    : 'var(--error-surface)';
+  const badgeColor = isChecking
+    ? 'var(--text-muted)'
+    : isOnline
+    ? 'var(--primary)'
+    : 'var(--error)';
 
   return (
     <header
@@ -137,11 +164,11 @@ export const Topbar: React.FC<TopbarProps> = ({
             borderColor: 'var(--border)',
             color: 'var(--text)',
           }}
-          title={isAiConfigured ? 'AI System: Gemini 3.8 Flash Online' : 'API Key Setup Needed'}
+          title={statusTitle}
         >
           <span
             className="w-2 h-2 rounded-full animate-pulse"
-            style={{ backgroundColor: isAiConfigured ? 'var(--primary)' : 'var(--error)' }}
+            style={{ backgroundColor: indicatorColor }}
           />
           <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
             AI Engine
@@ -149,11 +176,11 @@ export const Topbar: React.FC<TopbarProps> = ({
           <span
             className="px-1.5 py-0.5 rounded text-[11px] font-semibold"
             style={{
-              backgroundColor: isAiConfigured ? 'var(--surface-subtle)' : 'var(--error-surface)',
-              color: isAiConfigured ? 'var(--primary)' : 'var(--error)',
+              backgroundColor: badgeBg,
+              color: badgeColor,
             }}
           >
-            {isAiConfigured ? 'Active' : 'Offline'}
+            {statusLabel}
           </span>
         </div>
 

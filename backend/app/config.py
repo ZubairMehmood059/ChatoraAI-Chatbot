@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # Gemini AI Provider Settings
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
 
     # Supabase Settings
     SUPABASE_URL: str = ""

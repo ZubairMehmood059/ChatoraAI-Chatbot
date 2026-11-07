@@ -88,13 +88,18 @@ class GeminiAIService:
                 "Create a brief 3-5 word title summarizing this message. Do not use quotes or markdown:\n\n"
                 f"{prompt_text[:300]}"
             )
-            response = await client.aio.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-            )
-            title = (response.text or "").strip().strip("\"'").replace("\n", " ")
-            if title and len(title) < 50:
-                return title
+            for target_model in (settings.GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-3.5-flash"):
+                try:
+                    response = await client.aio.models.generate_content(
+                        model=target_model,
+                        contents=prompt,
+                    )
+                    title = (response.text or "").strip().strip("\"'").replace("\n", " ")
+                    if title and len(title) < 50:
+                        return title
+                except Exception as inner_err:
+                    logger.debug("Failed generating title with %s: %s", target_model, inner_err)
+                    continue
         except Exception as e:
             logger.debug("Failed auto-generating title: %s", e)
         return fallback or "New Chat"
@@ -107,39 +112,40 @@ class GeminiAIService:
         response_language: str = "auto",
         client_override: Optional[genai.Client] = None,
     ) -> AsyncGenerator[str, None]:
-        """Stream chunks from Gemini via async client."""
+        """Stream chunks from Gemini via async client with resilient model fallback."""
         client = client_override or self._get_client()
         settings = get_settings()
         system_instruction = self.build_system_instruction(response_style, response_language)
         contents = self.build_contents(message, history)
         config = types.GenerateContentConfig(system_instruction=system_instruction)
 
-        try:
-            stream = await client.aio.models.generate_content_stream(
-                model=settings.GEMINI_MODEL,
-                contents=contents,
-                config=config,
-            )
-            async for chunk in stream:
-                text = chunk.text
-                if text:
-                    yield text
-        except (genai_errors.APIError, Exception) as err:
-            err_str = str(err)
-            # Automatic fallback to gemini-flash-latest if model is busy / unavailable
-            if any(term in err_str for term in ("503", "high demand", "UNAVAILABLE")):
-                logger.warning("Primary model busy, falling back to gemini-flash-latest...")
-                fallback_stream = await client.aio.models.generate_content_stream(
-                    model="gemini-flash-latest",
+        # Fallback candidate models in case primary encounters 503, 404, or capacity issues
+        model_candidates = [settings.GEMINI_MODEL]
+        for fallback in ("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash"):
+            if fallback not in model_candidates:
+                model_candidates.append(fallback)
+
+        last_error = None
+        for model_name in model_candidates:
+            try:
+                stream = await client.aio.models.generate_content_stream(
+                    model=model_name,
                     contents=contents,
                     config=config,
                 )
-                async for chunk in fallback_stream:
+                async for chunk in stream:
                     text = chunk.text
                     if text:
                         yield text
-            else:
-                raise
+                return
+            except (genai_errors.APIError, Exception) as err:
+                last_error = err
+                err_str = str(err)
+                logger.warning("Generation with %s failed: %s. Trying fallback...", model_name, err_str)
+                continue
+
+        if last_error:
+            raise last_error
 
 
 ai_service = GeminiAIService()

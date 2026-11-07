@@ -76,16 +76,36 @@ export default function App() {
   }, [responseLanguage]);
 
   // Health and Model status
-  const [isAiConfigured, setIsAiConfigured] = useState(true);
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [modelName, setModelName] = useState<string>('gemini-3.5-flash-lite');
 
   useEffect(() => {
-    api.getHealth()
-      .then(data => {
-        setIsAiConfigured(Boolean(data.configured));
-      })
-      .catch(() => {
-        setIsAiConfigured(false);
-      });
+    let isMounted = true;
+    const checkHealth = async () => {
+      try {
+        const data = await api.getHealth();
+        if (isMounted) {
+          if (data.status === 'ok' && data.configured) {
+            setBackendStatus('online');
+            if (data.model) setModelName(data.model);
+          } else {
+            setBackendStatus('offline');
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setBackendStatus('offline');
+        }
+      }
+    };
+
+    checkHealth();
+    // Periodic health poll every 30 seconds
+    const interval = setInterval(checkHealth, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Conversations state
@@ -637,7 +657,8 @@ export default function App() {
             onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
             theme={theme}
             onToggleTheme={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
-            isAiConfigured={isAiConfigured}
+            backendStatus={backendStatus}
+            modelName={modelName}
             hasActiveConversation={messages.length > 0}
             onExport={handleExport}
             onPrint={handlePrint}
