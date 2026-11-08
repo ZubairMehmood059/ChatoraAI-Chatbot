@@ -10,6 +10,7 @@ interface AuthModalProps {
   onClose: () => void;
   initialView?: AuthModalView;
   onSuccess?: () => void;
+  backendConfigured?: boolean | null;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -17,6 +18,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialView = 'signin',
   onSuccess,
+  backendConfigured = null,
 }) => {
   const {
     user,
@@ -24,9 +26,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     isRecoveryMode,
     signIn,
     signUp,
+    resendConfirmation,
     resetPassword,
     updatePassword,
-    loginAsDemoUser,
     clearRecoveryMode,
   } = useAuth();
 
@@ -40,6 +42,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [canResendConfirmation, setCanResendConfirmation] = useState(false);
 
   // Switch to recovery view automatically if recovery mode is active
   useEffect(() => {
@@ -50,6 +53,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
     setErrorMessage(null);
     setSuccessMessage(null);
+    setCanResendConfirmation(false);
   }, [isOpen, initialView, isRecoveryMode]);
 
   // ESC key to close
@@ -66,6 +70,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleClose = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
+    setCanResendConfirmation(false);
     if (view === 'recovery') {
       clearRecoveryMode();
     }
@@ -88,8 +93,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onSuccess?.();
       handleClose();
     } catch (err: any) {
-      console.error('Sign in error:', err);
       setErrorMessage(err.message || 'Failed to sign in. Please check your credentials.');
+      setCanResendConfirmation(true);
     } finally {
       setLoading(false);
     }
@@ -99,6 +104,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setCanResendConfirmation(false);
 
     if (!email || !password) {
       setErrorMessage('Please fill in all required fields.');
@@ -133,7 +139,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }, 1200);
       }
     } catch (err: any) {
-      console.error('Sign up error:', err);
       setErrorMessage(err.message || 'Failed to register account.');
     } finally {
       setLoading(false);
@@ -144,6 +149,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setCanResendConfirmation(false);
 
     if (!email || !email.includes('@')) {
       setErrorMessage('Please enter a valid email address.');
@@ -153,9 +159,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
     try {
       await resetPassword(email.trim());
-      setSuccessMessage('Password reset link sent! Check your email inbox.');
+      setSuccessMessage('If an account exists for this address, password reset instructions will arrive by email. Check your inbox and spam folder.');
     } catch (err: any) {
-      console.error('Password reset error:', err);
       setErrorMessage(err.message || 'Failed to send reset link.');
     } finally {
       setLoading(false);
@@ -166,6 +171,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setCanResendConfirmation(false);
 
     if (!password || password.length < 8) {
       setErrorMessage('New password must be at least 8 characters.');
@@ -186,21 +192,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setView('signin');
       }, 1500);
     } catch (err: any) {
-      console.error('Update password error:', err);
       setErrorMessage(err.message || 'Failed to update password.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickDemo = async () => {
+  const handleResendConfirmation = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    if (!email.trim()) {
+      setErrorMessage('Enter your email address first, then request a confirmation link.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await loginAsDemoUser('pro.user@chatora.ai');
-      onSuccess?.();
-      handleClose();
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Demo login failed');
+      await resendConfirmation(email.trim());
+      setSuccessMessage('If this address has an unconfirmed account, a confirmation email has been sent. Check your inbox and spam folder.');
+      setCanResendConfirmation(false);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'The confirmation email could not be sent. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -247,7 +259,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
 
           {/* Config Status Pill if Supabase URL not yet set */}
-          {!isConfigured && (
+          {(!isConfigured || backendConfigured === false) && (
             <div
               className="mb-4 p-2.5 rounded-xl border flex items-start gap-2.5 text-xs"
               style={{
@@ -262,7 +274,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Supabase Live Connection
                 </p>
                 <p className="text-[12px] opacity-80 mt-0.5">
-                  Connect live Auth by adding <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[11px]">VITE_SUPABASE_URL</code> &amp; <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[11px]">VITE_SUPABASE_ANON_KEY</code>. You can also test instantly using Quick Demo Login.
+                  {!isConfigured
+                    ? <>Configure <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[11px]">VITE_SUPABASE_URL</code> and <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[11px]">VITE_SUPABASE_ANON_KEY</code> to enable Supabase Auth in this browser.</>
+                    : <>The backend cannot verify Supabase sessions yet. Configure <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[11px]">SUPABASE_URL</code> and <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[11px]">SUPABASE_SERVICE_ROLE_KEY</code> (or <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 text-[11px]">SB_SECRET_KEY</code>) on the server. Keep server secrets out of <code>VITE_</code> variables.</>}
                 </p>
               </div>
             </div>
@@ -277,6 +291,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 borderColor: 'var(--error)',
                 color: 'var(--error)',
               }}
+              role="alert"
+              aria-live="polite"
             >
               <AlertCircle size={16} className="shrink-0" />
               <span>{errorMessage}</span>
@@ -292,6 +308,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 borderColor: 'var(--primary)',
                 color: 'var(--primary)',
               }}
+              role="status"
+              aria-live="polite"
             >
               <CheckCircle2 size={16} className="shrink-0" />
               <span>{successMessage}</span>
@@ -388,22 +406,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               </form>
 
-              {/* Demo Sign In Button for instant testing */}
-              <div className="mt-4 pt-4 border-t flex flex-col gap-2" style={{ borderColor: 'var(--border)' }}>
+              {canResendConfirmation && (
                 <button
                   type="button"
-                  onClick={handleQuickDemo}
+                  onClick={handleResendConfirmation}
                   disabled={loading}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-medium border flex items-center justify-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
-                  style={{
-                    borderColor: 'var(--border)',
-                    color: 'var(--text)',
-                  }}
+                  className="mt-3 w-full text-xs font-medium hover:underline disabled:opacity-50"
+                  style={{ color: 'var(--primary)' }}
                 >
-                  <Sparkles size={14} style={{ color: 'var(--primary)' }} />
-                  <span>Quick Demo Login (Tester Account)</span>
+                  {loading ? 'Sending confirmation…' : 'Resend signup confirmation email'}
                 </button>
+              )}
 
+              <div className="mt-4 pt-4 border-t flex flex-col gap-2" style={{ borderColor: 'var(--border)' }}>
                 <p className="text-center text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                   Don’t have an account?{' '}
                   <button
@@ -735,13 +750,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
               <h2 className="text-lg font-bold mb-1.5">Verify your email</h2>
               <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-                We've sent a verification link to <span className="font-semibold text-[var(--text)]">{email}</span>. Please click the link in your email to activate your account.
+                If Supabase created a new account for <span className="font-semibold text-[var(--text)]">{email}</span>, check your inbox and spam folder for a confirmation link. Existing accounts can sign in or use password recovery.
               </p>
 
               <button
                 type="button"
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold disabled:opacity-50"
+                style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-fg)' }}
+              >
+                {loading ? 'Sending confirmation…' : 'Resend confirmation email'}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setView('signin')}
-                className="w-full py-2 px-4 rounded-xl text-xs font-semibold border cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                className="w-full mt-2 py-2 px-4 rounded-xl text-xs font-semibold border cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 style={{
                   borderColor: 'var(--border)',
                   color: 'var(--text)',

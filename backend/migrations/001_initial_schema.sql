@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS public.conversations (
     id TEXT PRIMARY KEY DEFAULT ('conv_' || extract(epoch from now())::bigint || '_' || encode(gen_random_bytes(4), 'hex')),
     title TEXT NOT NULL DEFAULT 'New Conversation',
     pinned BOOLEAN NOT NULL DEFAULT FALSE,
-    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    -- Auth ownership IDs come from Supabase Auth and need not exist in public.users.
+    user_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -57,13 +58,14 @@ CREATE TABLE IF NOT EXISTS public.feedback (
     category TEXT NOT NULL,
     message TEXT NOT NULL,
     ip_hash TEXT,
-    user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    -- Optional Supabase Auth identity attribution; public.users is not the auth source.
+    user_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 4. PERFORMANCE & FOREIGN KEY INDEXES
 
--- Foreign key indexes (Rule: Every FK column must be indexed)
+-- Foreign key and ownership indexes
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON public.feedback(user_id);

@@ -6,7 +6,11 @@ class FileUploadRequest(BaseModel):
     """Schema for document upload and text extraction request."""
 
     fileName: str = Field(min_length=1, max_length=255, description="Client filename with extension")
-    fileContent: str = Field(min_length=1, description="Raw file text or base64 data")
+    fileContent: str = Field(
+        min_length=1,
+        max_length=4_000_000,
+        description="Raw file text or base64 data (bounded encoded payload)",
+    )
     fileType: Optional[str] = Field(default=None, description="MIME type or client extension")
 
 

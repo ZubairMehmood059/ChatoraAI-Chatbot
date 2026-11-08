@@ -35,6 +35,10 @@ class Settings(BaseSettings):
 
     # Supabase Settings
     SUPABASE_URL: str = ""
+    # New Supabase key naming (sb_ prefixes). Backend uses secret key only.
+    SB_SECRET_KEY: str = ""
+    SB_PUBLISHABLE_KEY: str = ""
+    # Backward compatibility aliases (keep existing env names optional)
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_ANON_KEY: str = ""
     DATABASE_URL: str = ""
@@ -58,28 +62,30 @@ class Settings(BaseSettings):
 
     @property
     def is_gemini_configured(self) -> bool:
-        return bool(
-            self.GEMINI_API_KEY
-            and self.GEMINI_API_KEY != "your-gemini-api-key-here"
-            and not self.GEMINI_API_KEY.startswith("your-")
+        candidate = self.GEMINI_API_KEY.strip()
+        return bool(candidate) and not candidate.lower().startswith(
+            ("your-", "[", "${", "placeholder")
         )
 
     @property
     def is_supabase_configured(self) -> bool:
+        # Backend only needs the secret key for JWT verification. The publishable key is used client‑side.
+        secret_key = (self.SB_SECRET_KEY or self.SUPABASE_SERVICE_ROLE_KEY).strip()
+        normalized_key = secret_key.lower()
         return bool(
             self.SUPABASE_URL
             and self.SUPABASE_URL.startswith("http")
             and "your-project" not in self.SUPABASE_URL
-            and self.SUPABASE_ANON_KEY
-            and not self.SUPABASE_ANON_KEY.startswith("your-")
+            and secret_key
+            and not normalized_key.startswith(("your-", "sb_secret_your", "placeholder", "[", "${"))
         )
 
     @property
     def is_db_configured(self) -> bool:
-        return bool(
-            self.DATABASE_URL
-            and "user:password" not in self.DATABASE_URL
-            and not self.DATABASE_URL.startswith("postgresql://placeholder")
+        candidate = self.DATABASE_URL.strip().lower()
+        return bool(candidate) and not any(
+            marker in candidate
+            for marker in ("user:password", "placeholder", "your-password", "[password]")
         )
 
     @property

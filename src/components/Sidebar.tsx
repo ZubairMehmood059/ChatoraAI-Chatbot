@@ -280,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onSelectConversation(convo.id);
                             if (isMobileOpen) onCloseMobile();
                           }}
-                          className="w-full text-left py-2 px-2.5 pr-9 rounded-xl text-xs sm:text-[13px] cursor-pointer transition-colors flex items-center gap-1.5 overflow-hidden"
+                          className="w-full text-left py-2 px-2.5 pr-9 rounded-xl text-sm cursor-pointer transition-colors flex items-center gap-1.5 overflow-hidden"
                           style={{
                             color: 'var(--text)',
                             fontWeight: isActive ? 600 : 400,

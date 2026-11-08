@@ -10,14 +10,42 @@ interface AuthContextType {
   isRecoveryMode: boolean;
   signUp: (email: string, password: string, name?: string) => Promise<{ needsEmailVerification: boolean; user: User | null }>;
   signIn: (email: string, password: string) => Promise<void>;
+  resendConfirmation: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
-  loginAsDemoUser: (email?: string) => Promise<void>;
   clearRecoveryMode: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+interface SupabaseAuthErrorLike {
+  code?: string;
+  status?: number;
+  name?: string;
+}
+
+function safeAuthError(error: unknown, operation: 'sign in' | 'sign up' | 'confirmation' | 'password reset' | 'password update'): Error {
+  const authError = error as SupabaseAuthErrorLike | null;
+  switch (authError?.code) {
+    case 'email_not_confirmed':
+      return new Error('Your email address is not confirmed. Check your inbox or request a new confirmation email.');
+    case 'invalid_credentials':
+      return new Error('Email or password is incorrect. If you have not confirmed this email, confirm it or request a new link.');
+    case 'over_email_send_rate_limit':
+    case 'over_request_rate_limit':
+      return new Error('Too many authentication attempts. Please wait a few minutes and try again.');
+    case 'email_address_not_authorized':
+      return new Error('This Supabase project cannot send email to that address yet. Check its email provider or SMTP configuration.');
+    case 'email_provider_disabled':
+    case 'signup_disabled':
+      return new Error('Email sign-up is disabled for this Supabase project.');
+    case 'weak_password':
+      return new Error('Choose a stronger password that meets the project requirements.');
+    default:
+      return new Error(`Supabase ${operation} could not be completed. Check the project Auth settings and try again.`);
+  }
+}
 
 // Active auth token holder for API client fetch injection
 let currentAuthToken: string | null = null;
@@ -46,19 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!isSupabaseConfigured || !supabase) {
-      // Check if there is an existing local demo session for offline testing
-      const savedUser = localStorage.getItem('chatora_demo_user');
-      const savedToken = localStorage.getItem('chatora_demo_token');
-      if (savedUser && savedToken) {
-        try {
-          const parsed = JSON.parse(savedUser);
-          setUser(parsed);
-          setToken(savedToken);
-          currentAuthToken = savedToken;
-        } catch {
-          // ignore corrupted local state
-        }
-      }
+      localStorage.removeItem('chatora_demo_user');
+      localStorage.removeItem('chatora_demo_token');
+      currentAuthToken = null;
       setLoading(false);
       return;
     }
@@ -108,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
-      throw error;
+      throw safeAuthError(error, 'sign up');
     }
 
     // If user requires email confirmation, session will be null
@@ -134,12 +152,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
-      throw error;
+      throw safeAuthError(error, 'sign in');
     }
 
-    if (data.session) {
-      updateSessionState(data.session);
+    if (!data.session) {
+      throw new Error('Sign-in did not return a session. If email confirmation is enabled, confirm your address and try again.');
     }
+    updateSessionState(data.session);
+  };
+
+  const resendConfirmation = async (email: string) => {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error(
+        'Supabase authentication is not configured in this environment. Provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to request confirmation.'
+      );
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: {
+        emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : undefined,
+      },
+    });
+    if (error) throw safeAuthError(error, 'confirmation');
   };
 
   // Sign Out
@@ -169,7 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
-      throw error;
+      throw safeAuthError(error, 'password reset');
     }
   };
 
@@ -184,29 +220,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
-      throw error;
+      throw safeAuthError(error, 'password update');
     }
 
     setIsRecoveryMode(false);
-  };
-
-  // Quick Demo Login for instant testing without external setup
-  const loginAsDemoUser = async (email = 'pro.designer@chatora.ai') => {
-    const demoId = 'usr_demo_' + Math.random().toString(36).substring(2, 7);
-    const demoUser = {
-      id: demoId,
-      email,
-      app_metadata: {},
-      user_metadata: { name: email.split('@')[0] },
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-    } as unknown as User;
-    const demoToken = 'demo_jwt_' + demoId + '_' + Date.now();
-    localStorage.setItem('chatora_demo_user', JSON.stringify(demoUser));
-    localStorage.setItem('chatora_demo_token', demoToken);
-    setUser(demoUser);
-    setToken(demoToken);
-    currentAuthToken = demoToken;
   };
 
   const clearRecoveryMode = () => {
@@ -227,10 +244,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isRecoveryMode,
         signUp,
         signIn,
+        resendConfirmation,
         signOut,
         resetPassword,
         updatePassword,
-        loginAsDemoUser,
         clearRecoveryMode,
       }}
     >

@@ -43,6 +43,7 @@ export interface HealthResponse {
   service: string;
   model: string;
   configured: boolean;
+  authConfigured?: boolean;
   timestamp: string;
 }
 
@@ -73,10 +74,22 @@ function getHeaders(customHeaders: Record<string, string> = {}): Record<string, 
   return headers;
 }
 
+async function fetchApi(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    if (error instanceof Error && error.name === 'AbortError') throw error;
+    throw new Error(
+      'Cannot reach the FastAPI service. Run `npm run dev` from the project root, or check VITE_API_URL.'
+    );
+  }
+}
+
 export const api = {
   // Health Status
   async getHealth(): Promise<HealthResponse> {
-    const res = await fetch(`${API_BASE}/health`, {
+    const res = await fetchApi(`${API_BASE}/health`, {
       headers: getHeaders(),
     });
     if (!res.ok) throw new Error('Health probe failed');
@@ -85,7 +98,7 @@ export const api = {
 
   // Conversation Management (per-user scoped when authenticated)
   async getConversations(): Promise<ConversationSummary[]> {
-    const res = await fetch(`${API_BASE}/api/conversations`, {
+    const res = await fetchApi(`${API_BASE}/api/conversations`, {
       headers: getHeaders(),
     });
     if (res.status === 401) {
@@ -96,7 +109,7 @@ export const api = {
   },
 
   async getConversation(id: string): Promise<ConversationDetail> {
-    const res = await fetch(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
+    const res = await fetchApi(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
       headers: getHeaders(),
     });
     if (res.status === 403) {
@@ -107,7 +120,7 @@ export const api = {
   },
 
   async createConversation(title?: string): Promise<ConversationDetail> {
-    const res = await fetch(`${API_BASE}/api/conversations`, {
+    const res = await fetchApi(`${API_BASE}/api/conversations`, {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ title: title || 'New Chat' }),
@@ -117,7 +130,7 @@ export const api = {
   },
 
   async renameConversation(id: string, title: string): Promise<ConversationDetail> {
-    const res = await fetch(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
+    const res = await fetchApi(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ title }),
@@ -130,7 +143,7 @@ export const api = {
   },
 
   async togglePinConversation(id: string, pinned: boolean): Promise<ConversationDetail> {
-    const res = await fetch(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
+    const res = await fetchApi(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ pinned }),
@@ -143,7 +156,7 @@ export const api = {
   },
 
   async deleteConversation(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
+    const res = await fetchApi(`${API_BASE}/api/conversations/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
@@ -154,7 +167,7 @@ export const api = {
   },
 
   async clearAllConversations(): Promise<void> {
-    const res = await fetch(`${API_BASE}/api/conversations`, {
+    const res = await fetchApi(`${API_BASE}/api/conversations`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
@@ -167,7 +180,7 @@ export const api = {
     fileType: string;
     content: string;
   }> {
-    const res = await fetch(`${API_BASE}/api/upload`, {
+    const res = await fetchApi(`${API_BASE}/api/upload`, {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ fileName, fileContent, fileType }),
@@ -182,7 +195,7 @@ export const api = {
   // Chat Streaming via Server-Sent Events with Bearer Auth
   async streamChat(
     payload: {
-      conversationId: string;
+      conversationId?: string;
       message: string;
       history?: Array<{ role: string; content: string }>;
       responseStyle?: 'concise' | 'balanced' | 'detailed';
@@ -191,7 +204,7 @@ export const api = {
     callbacks: StreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
-    const response = await fetch(`${API_BASE}/api/chat`, {
+    const response = await fetchApi(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       signal,
@@ -211,38 +224,70 @@ export const api = {
     const decoder = new TextDecoder();
     let accumulatedText = '';
     let currentRequestId = '';
+    let buffer = '';
+    let terminalEventReceived = false;
+
+    const processEventBlock = (block: string) => {
+      const data = block
+        .split(/\r?\n/)
+        .filter(line => line.startsWith('data:'))
+        .map(line => line.slice(5).replace(/^ /, ''))
+        .join('\n');
+      if (!data) return;
+
+      const event = JSON.parse(data);
+      if (event.type === 'start') {
+        currentRequestId = event.requestId || '';
+        callbacks.onStart?.(currentRequestId);
+      } else if (event.type === 'chunk') {
+        const text = typeof event.text === 'string' ? event.text : '';
+        accumulatedText += text;
+        callbacks.onChunk?.(text);
+      } else if (event.type === 'done') {
+        terminalEventReceived = true;
+        callbacks.onDone?.(accumulatedText || event.fullText || '', event.title);
+      } else if (event.type === 'error') {
+        terminalEventReceived = true;
+        callbacks.onError?.(
+          new Error(event.error || 'Text generation error'),
+          event.requestId || currentRequestId
+        );
+      }
+    };
 
     try {
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        buffer += decoder.decode(value, { stream: !done });
 
-        const textChunk = decoder.decode(value, { stream: true });
-        const lines = textChunk.split('\n');
+        let boundary = buffer.match(/\r?\n\r?\n/);
+        while (boundary && boundary.index !== undefined) {
+          const block = buffer.slice(0, boundary.index);
+          buffer = buffer.slice(boundary.index + boundary[0].length);
+          try {
+            processEventBlock(block);
+          } catch {
+            callbacks.onError?.(new Error('Received an invalid streaming response.'), currentRequestId);
+            terminalEventReceived = true;
+          }
+          boundary = buffer.match(/\r?\n\r?\n/);
+        }
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6).trim();
-            if (!jsonStr) continue;
-
+        if (done) {
+          if (buffer.trim()) {
             try {
-              const event = JSON.parse(jsonStr);
-              if (event.type === 'start') {
-                currentRequestId = event.requestId || '';
-                callbacks.onStart?.(currentRequestId);
-              } else if (event.type === 'chunk') {
-                accumulatedText += event.text || '';
-                callbacks.onChunk?.(event.text || '');
-              } else if (event.type === 'done') {
-                callbacks.onDone?.(accumulatedText || event.fullText || '', event.title);
-              } else if (event.type === 'error') {
-                callbacks.onError?.(new Error(event.error || 'Text generation error'), event.requestId || currentRequestId);
-              }
+              processEventBlock(buffer);
             } catch {
-              // Ignore partial JSON across streaming packets
+              callbacks.onError?.(new Error('Received an invalid streaming response.'), currentRequestId);
+              terminalEventReceived = true;
             }
           }
+          break;
         }
+      }
+
+      if (!terminalEventReceived && !signal?.aborted) {
+        callbacks.onError?.(new Error('The response stream ended before generation completed.'), currentRequestId);
       }
     } catch (streamErr: unknown) {
       const isAbort =
@@ -261,13 +306,15 @@ export const api = {
         streamErr instanceof Error ? streamErr : new Error(String(streamErr)),
         currentRequestId
       );
+    } finally {
+      reader.releaseLock();
     }
   },
 
   // Auth User Profile Verification
   auth: {
     async getCurrentUser(): Promise<{ authenticated: boolean; user?: UserProfile }> {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
+      const res = await fetchApi(`${API_BASE}/api/auth/me`, {
         headers: getHeaders(),
       });
       if (!res.ok) return { authenticated: false };
@@ -283,7 +330,7 @@ export const api = {
     message: string;
     hp_website?: string;
   }): Promise<{ success: boolean; referenceId: string; message: string }> {
-    const res = await fetch(`${API_BASE}/api/feedback`, {
+    const res = await fetchApi(`${API_BASE}/api/feedback`, {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),

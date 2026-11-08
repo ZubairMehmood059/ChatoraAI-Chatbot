@@ -238,30 +238,22 @@ function renderFormattedText(text: string): React.ReactNode {
     const trimmed = para.trim();
     if (!trimmed) return null;
 
-    // Header 1 (# ...)
-    if (trimmed.startsWith('# ')) {
+    const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const headingClasses = [
+        'text-2xl font-bold tracking-tight mt-5 mb-2',
+        'text-xl font-semibold tracking-tight mt-4 mb-2',
+        'text-lg font-semibold mt-3 mb-1',
+        'text-base font-semibold mt-3 mb-1',
+        'text-sm font-semibold mt-2 mb-1',
+        'text-sm font-medium mt-2 mb-1',
+      ];
+      const HeadingTag = `h${level}` as React.ElementType;
       return (
-        <h1 key={`h1-${pIdx}`} className="text-2xl font-bold tracking-tight mt-5 mb-2" style={{ color: 'var(--text)' }}>
-          {formatInline(trimmed.replace(/^#\s+/, ''))}
-        </h1>
-      );
-    }
-
-    // Header 2 (## ...)
-    if (trimmed.startsWith('## ')) {
-      return (
-        <h2 key={`h2-${pIdx}`} className="text-xl font-semibold tracking-tight mt-4 mb-2" style={{ color: 'var(--text)' }}>
-          {formatInline(trimmed.replace(/^##\s+/, ''))}
-        </h2>
-      );
-    }
-
-    // Header 3 (### ...)
-    if (trimmed.startsWith('### ')) {
-      return (
-        <h3 key={`h3-${pIdx}`} className="text-lg font-semibold mt-3 mb-1" style={{ color: 'var(--text)' }}>
-          {formatInline(trimmed.replace(/^###\s+/, ''))}
-        </h3>
+        <HeadingTag key={`h${level}-${pIdx}`} className={headingClasses[level - 1]} style={{ color: 'var(--text)' }}>
+          {formatInline(heading[2])}
+        </HeadingTag>
       );
     }
 
@@ -286,8 +278,8 @@ function renderFormattedText(text: string): React.ReactNode {
     }
 
     // Bullet List
-    if (trimmed.split('\n').every(l => /^\s*[-*]\s+/.test(l))) {
-      const items = trimmed.split('\n').map(l => l.replace(/^\s*[-*]\s+/, ''));
+    if (trimmed.split('\n').every(l => /^\s*[-*+]\s+/.test(l))) {
+      const items = trimmed.split('\n').map(l => l.replace(/^\s*[-*+]\s+/, ''));
       return (
         <ul key={`ul-${pIdx}`} className="list-disc pl-5 space-y-1 my-2">
           {items.map((it, iIdx) => (
@@ -298,8 +290,8 @@ function renderFormattedText(text: string): React.ReactNode {
     }
 
     // Numbered List
-    if (trimmed.split('\n').every(l => /^\s*\d+\.\s+/.test(l))) {
-      const items = trimmed.split('\n').map(l => l.replace(/^\s*\d+\.\s+/, ''));
+    if (trimmed.split('\n').every(l => /^\s*\d+[.)]\s+/.test(l))) {
+      const items = trimmed.split('\n').map(l => l.replace(/^\s*\d+[.)]\s+/, ''));
       return (
         <ol key={`ol-${pIdx}`} className="list-decimal pl-5 space-y-1 my-2">
           {items.map((it, iIdx) => (
@@ -321,9 +313,14 @@ function renderFormattedText(text: string): React.ReactNode {
           .slice(1, -1)
           .split('|')
           .map(c => c.trim());
-        const bodyRows = rows
-          .slice(2)
-          .map(r => r.slice(1, -1).split('|').map(c => c.trim()));
+        const hasSeparator = rows[1]
+          .slice(1, -1)
+          .split('|')
+          .every(cell => /^\s*:?-{3,}:?\s*$/.test(cell));
+        if (!hasSeparator) {
+          return <p key={`p-${pIdx}`} className="leading-relaxed">{formatInline(para)}</p>;
+        }
+        const bodyRows = rows.slice(2).map(r => r.slice(1, -1).split('|').map(c => c.trim()));
 
         return (
           <div
@@ -376,9 +373,9 @@ function renderFormattedText(text: string): React.ReactNode {
 }
 
 function formatInline(str: string): React.ReactNode {
-  // Process bold (**...**), highlight (==...==), inline code (`...`), and links ([...](...))
+  // Render common inline Markdown as React nodes so untrusted content stays escaped.
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*[^*]+\*\*|==[^=]+==|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  const regex = /(\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|==[^=]+==|`[^`]+`|\[[^\]]+\]\([^)]+\)|\*[^*\n]+\*|_[^_\n]+_)/g;
 
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -396,6 +393,12 @@ function formatInline(str: string): React.ReactNode {
           {token.slice(2, -2)}
         </strong>
       );
+    } else if (token.startsWith('__') && token.endsWith('__')) {
+      parts.push(<strong key={`bold-${keyIdx++}`} className="font-semibold">{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('~~') && token.endsWith('~~')) {
+      parts.push(<del key={`del-${keyIdx++}`}>{token.slice(2, -2)}</del>);
+    } else if ((token.startsWith('*') && token.endsWith('*')) || (token.startsWith('_') && token.endsWith('_'))) {
+      parts.push(<em key={`em-${keyIdx++}`}>{token.slice(1, -1)}</em>);
     } else if (token.startsWith('==') && token.endsWith('==')) {
       parts.push(
         <mark
@@ -427,18 +430,24 @@ function formatInline(str: string): React.ReactNode {
     } else if (token.startsWith('[')) {
       const linkMatch = token.match(/\[([^\]]+)\]\(([^)]+)\)/);
       if (linkMatch) {
-        parts.push(
-          <a
-            key={`a-${keyIdx++}`}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:opacity-85"
-            style={{ color: 'var(--primary)' }}
-          >
-            {linkMatch[1]}
-          </a>
-        );
+        const href = safeMarkdownHref(linkMatch[2]);
+        if (href) {
+          const external = /^https?:\/\//i.test(href);
+          parts.push(
+            <a
+              key={`a-${keyIdx++}`}
+              href={href}
+              target={external ? '_blank' : undefined}
+              rel={external ? 'noopener noreferrer' : undefined}
+              className="underline underline-offset-2 hover:opacity-85"
+              style={{ color: 'var(--primary)' }}
+            >
+              {linkMatch[1]}
+            </a>
+          );
+        } else {
+          parts.push(linkMatch[1]);
+        }
       }
     }
 
@@ -450,4 +459,11 @@ function formatInline(str: string): React.ReactNode {
   }
 
   return <>{parts}</>;
+}
+
+function safeMarkdownHref(candidate: string): string | null {
+  const href = candidate.trim();
+  if (/^(https?:\/\/|mailto:)/i.test(href)) return href;
+  if (/^(?:\/|#|\.\/|\.\.\/)/.test(href) && !href.startsWith('//')) return href;
+  return null;
 }

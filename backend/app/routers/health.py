@@ -15,6 +15,7 @@ async def get_health(settings: Settings = Depends(get_settings)) -> HealthRespon
         service=settings.APP_NAME,
         model=settings.GEMINI_MODEL,
         configured=settings.is_gemini_configured,
+        authConfigured=settings.is_supabase_configured,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 

@@ -7,7 +7,7 @@ interface TopbarProps {
   onOpenMobileMenu: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
-  backendStatus?: 'checking' | 'online' | 'offline';
+  backendStatus?: 'checking' | 'online' | 'unconfigured' | 'offline';
   modelName?: string;
   hasActiveConversation: boolean;
   onExport: (format: 'txt' | 'md') => void;
@@ -40,28 +40,41 @@ export const Topbar: React.FC<TopbarProps> = ({
 
   const isOnline = backendStatus === 'online';
   const isChecking = backendStatus === 'checking';
+  const isUnconfigured = backendStatus === 'unconfigured';
 
-  const statusLabel = isChecking ? 'Connecting...' : isOnline ? 'Active' : 'Offline';
+  const statusLabel = isChecking
+    ? 'Connecting...'
+    : isOnline
+      ? 'Active'
+      : isUnconfigured
+        ? 'Key missing'
+        : 'Offline';
   const statusTitle = isChecking
     ? 'Checking connection to AI backend...'
     : isOnline
     ? `AI System: ${modelName} Online`
-    : 'Backend Offline: verify FastAPI server is running';
+    : isUnconfigured
+      ? 'FastAPI is reachable, but GEMINI_API_KEY is missing or invalid.'
+      : 'FastAPI is unreachable. Run npm run dev from the project root.';
   const indicatorColor = isChecking
     ? 'var(--warning, #f59e0b)'
     : isOnline
-    ? 'var(--primary)'
-    : 'var(--error)';
+      ? 'var(--primary)'
+      : isUnconfigured
+        ? 'var(--amber)'
+        : 'var(--error)';
   const badgeBg = isChecking
     ? 'var(--surface-subtle)'
-    : isOnline
-    ? 'var(--surface-subtle)'
-    : 'var(--error-surface)';
+    : isOnline || isUnconfigured
+      ? 'var(--surface-subtle)'
+      : 'var(--error-surface)';
   const badgeColor = isChecking
     ? 'var(--text-muted)'
     : isOnline
-    ? 'var(--primary)'
-    : 'var(--error)';
+      ? 'var(--primary)'
+      : isUnconfigured
+        ? 'var(--amber)'
+        : 'var(--error)';
 
   return (
     <header

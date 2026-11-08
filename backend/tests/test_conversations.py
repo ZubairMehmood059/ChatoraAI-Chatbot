@@ -1,23 +1,31 @@
 from fastapi.testclient import TestClient
 
 
-def test_conversation_lifecycle_guest(client: TestClient):
-    """Test full CRUD lifecycle for guest sessions."""
+def test_guest_cannot_create_or_list_persisted_history(client: TestClient):
+    """Unauthenticated requests cannot create or view shared server-side history."""
+    assert client.get("/api/conversations").json() == []
+    create_res = client.post("/api/conversations", json={"title": "Private by default"})
+    assert create_res.status_code == 401
+
+
+def test_conversation_lifecycle_authenticated(client: TestClient):
+    """Test full CRUD lifecycle for an authenticated user's saved history."""
+    headers = {"Authorization": "Bearer test-user-lifecycle"}
     # 1. Create
-    res = client.post("/api/conversations", json={"title": "Guest Chat"})
+    res = client.post("/api/conversations", json={"title": "User Chat"}, headers=headers)
     assert res.status_code == 201
     data = res.json()
-    assert data["title"] == "Guest Chat"
+    assert data["title"] == "User Chat"
     convo_id = data["id"]
 
     # 2. List
-    list_res = client.get("/api/conversations")
+    list_res = client.get("/api/conversations", headers=headers)
     assert list_res.status_code == 200
     ids = [c["id"] for c in list_res.json()]
     assert convo_id in ids
 
     # 3. Get detail
-    detail_res = client.get(f"/api/conversations/{convo_id}")
+    detail_res = client.get(f"/api/conversations/{convo_id}", headers=headers)
     assert detail_res.status_code == 200
     assert detail_res.json()["id"] == convo_id
 
@@ -25,25 +33,26 @@ def test_conversation_lifecycle_guest(client: TestClient):
     patch_res = client.patch(
         f"/api/conversations/{convo_id}",
         json={"title": "Updated Guest Chat", "pinned": True},
+        headers=headers,
     )
     assert patch_res.status_code == 200
     assert patch_res.json()["title"] == "Updated Guest Chat"
     assert patch_res.json()["pinned"] is True
 
     # 5. Delete
-    del_res = client.delete(f"/api/conversations/{convo_id}")
+    del_res = client.delete(f"/api/conversations/{convo_id}", headers=headers)
     assert del_res.status_code == 200
     assert del_res.json()["success"] is True
 
     # 6. Verify deleted
-    get_del = client.get(f"/api/conversations/{convo_id}")
+    get_del = client.get(f"/api/conversations/{convo_id}", headers=headers)
     assert get_del.status_code == 404
 
 
 def test_cross_user_isolation_and_ownership(client: TestClient):
     """Verify User Bob cannot access, update, or delete User Alice's private conversations (BOLA/IDOR)."""
-    alice_headers = {"Authorization": "Bearer demo_jwt_user_alice_12345"}
-    bob_headers = {"Authorization": "Bearer demo_jwt_user_bob_67890"}
+    alice_headers = {"Authorization": "Bearer test-user-alice"}
+    bob_headers = {"Authorization": "Bearer test-user-bob"}
 
     # Alice creates conversation
     create_res = client.post(
@@ -88,7 +97,7 @@ def test_cross_user_isolation_and_ownership(client: TestClient):
 
 def test_conversation_search_filter(client: TestClient):
     """Verify search query parameter filters conversation titles."""
-    headers = {"Authorization": "Bearer demo_jwt_user_searcher_999"}
+    headers = {"Authorization": "Bearer test-user-searcher"}
     client.post("/api/conversations", json={"title": "Python Microservice"}, headers=headers)
     client.post("/api/conversations", json={"title": "React Architecture"}, headers=headers)
 

@@ -21,6 +21,7 @@ interface ComposerProps {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   responseStyle?: 'concise' | 'balanced' | 'detailed';
   onSetResponseStyle?: (style: 'concise' | 'balanced' | 'detailed') => void;
+  responseLanguage?: string;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -36,16 +37,105 @@ export const Composer: React.FC<ComposerProps> = ({
   textareaRef,
   responseStyle = 'balanced',
   onSetResponseStyle,
+  responseLanguage = 'auto',
 }) => {
   const charLimit = 8000;
   const isNearLimit = input.length > charLimit * 0.8;
   const isOverLimit = input.length > charLimit;
   const canSend = (input.trim().length > 0 || attachedFile !== null) && !isOverLimit && !isBusy;
 
-  // Speech Recognition state
   const [isListening, setIsListening] = useState(false);
-  const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+  const recognitionConstructorRef = useRef<any>(null);
+
+  // Detect SpeechRecognition support once on mount
+  useEffect(() => {
+    recognitionConstructorRef.current =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const Recognition = recognitionConstructorRef.current;
+    if (!Recognition) {
+      setSpeechError('Voice dictation is not supported in this browser.');
+      return;
+    }
+
+    recognitionRef.current?.abort?.();
+    const recognition = new Recognition();
+    const localeByLanguage: Record<string, string> = {
+      English: 'en-US', Spanish: 'es-ES', French: 'fr-FR', German: 'de-DE',
+      Japanese: 'ja-JP', 'Chinese (Simplified)': 'zh-CN', Arabic: 'ar-SA',
+      Urdu: 'ur-PK', Hindi: 'hi-IN',
+    };
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = responseLanguage === 'auto'
+      ? navigator.language || 'en-US'
+      : localeByLanguage[responseLanguage] || navigator.language || 'en-US';
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results as ArrayLike<any>)
+        .slice(event.resultIndex)
+        .filter((result: any) => result.isFinal)
+        .map((result: any) => result[0]?.transcript || '')
+        .join(' ')
+        .trim();
+      if (transcript) {
+        setInput(prev => (typeof prev === 'string' && prev ? `${prev} ${transcript}` : transcript));
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      const messages: Record<string, string> = {
+        'not-allowed': 'Microphone permission was denied. Allow microphone access and try again.',
+        'service-not-allowed': 'The browser speech service is unavailable for this site.',
+        'audio-capture': 'No microphone was found or it is unavailable.',
+        'no-speech': 'No speech was detected. Try speaking again.',
+        network: 'Speech recognition needs a working network connection.',
+      };
+      setSpeechError(messages[event.error] || 'Voice input encountered an error. Please try again.');
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    try {
+      setSpeechError(null);
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsListening(true);
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      setSpeechError('Could not start voice input. Check microphone permission and try again.');
+    }
+  };
+
+  // Existing cleanup effect remains unchanged
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+  const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
+
 
   // Auto-resize textarea height
   useEffect(() => {
@@ -56,64 +146,7 @@ export const Composer: React.FC<ComposerProps> = ({
     ta.style.height = `${Math.max(newHeight, 38)}px`;
   }, [input, textareaRef]);
 
-  // Handle Speech Recognition
-  const toggleListening = () => {
-    if (isListening) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setIsListening(false);
-      return;
-    }
 
-    const SpeechRecognitionAPI =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognitionAPI) {
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognitionAPI();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = (event: any) => {
-        let finalChunk = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalChunk += event.results[i][0].transcript;
-          }
-        }
-        if (finalChunk.trim()) {
-          setInput(prev => (prev ? prev + ' ' + finalChunk.trim() : finalChunk.trim()));
-        }
-      };
-
-      recognition.onerror = () => {
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-      setIsListening(true);
-    } catch {
-      setIsListening(false);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -186,6 +219,11 @@ export const Composer: React.FC<ComposerProps> = ({
           borderColor: 'var(--border-strong)',
         }}
       >
+        {speechError && (
+          <div id="speech-input-error" className="px-2 pt-1 text-xs" style={{ color: 'var(--error)' }} role="alert">
+            {speechError}
+          </div>
+        )}
         {/* Top / Main Input Row */}
         <div className="flex items-end gap-2.5">
           {/* Attach File Button */}
@@ -247,6 +285,8 @@ export const Composer: React.FC<ComposerProps> = ({
             }}
             title={isListening ? 'Stop listening' : 'Dictate with voice'}
             aria-label={isListening ? 'Stop listening' : 'Dictate with voice'}
+            aria-pressed={isListening}
+            aria-describedby={speechError ? 'speech-input-error' : undefined}
           >
             {isListening ? <MicOff size={18} /> : <Mic size={18} />}
           </motion.button>

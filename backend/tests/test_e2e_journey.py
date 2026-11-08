@@ -40,7 +40,7 @@ def test_full_user_journey_and_security(client: TestClient):
     assert login_res.status_code == 200
 
     # Simulate Supabase / Bearer auth for subsequent protected requests
-    auth_headers = {"Authorization": f"Bearer demo_jwt_{user_id}_12345"}
+    auth_headers = {"Authorization": f"Bearer test-user-{user_id}"}
 
     # 3. Check /api/auth/me
     me_res = client.get("/api/auth/me", headers=auth_headers)

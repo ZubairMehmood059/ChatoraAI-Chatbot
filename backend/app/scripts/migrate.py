@@ -16,17 +16,18 @@ async def run_migrations() -> None:
 
     # If it's PostgreSQL, execute the raw SQL migration file
     if "postgresql" in settings.async_database_url:
-        migration_file = Path(__file__).resolve().parent.parent.parent / "migrations" / "001_initial_schema.sql"
-        if not migration_file.exists():
-            logger.error("Migration file %s does not exist", migration_file)
+        migrations_dir = Path(__file__).resolve().parent.parent.parent / "migrations"
+        migration_files = sorted(migrations_dir.glob("*.sql"))
+        if not migration_files:
+            logger.error("No SQL migrations found in %s", migrations_dir)
             sys.exit(1)
 
-        sql_content = migration_file.read_text(encoding="utf-8")
-        logger.info("Executing 001_initial_schema.sql...")
-        async with engine.begin() as conn:
-            # Execute statement by statement or block
-            await conn.execute(text(sql_content))
-        logger.info("Successfully applied 001_initial_schema.sql to PostgreSQL.")
+        for migration_file in migration_files:
+            sql_content = migration_file.read_text(encoding="utf-8")
+            logger.info("Executing %s...", migration_file.name)
+            async with engine.begin() as conn:
+                await conn.execute(text(sql_content))
+            logger.info("Successfully applied %s.", migration_file.name)
     else:
         # SQLite / Dev mode: Initialize SQLAlchemy declarative schema
         logger.info("Initializing schema via SQLAlchemy metadata...")

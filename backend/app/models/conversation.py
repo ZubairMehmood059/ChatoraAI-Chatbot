@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import secrets
 from typing import Any, Dict, List, Optional
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, func
+from sqlalchemy import Boolean, DateTime, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.models.base import Base
 from backend.app.models.message import ChatMessage
@@ -17,7 +17,6 @@ class Conversation(Base):
     pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     user_id: Mapped[Optional[str]] = mapped_column(
         String(64),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
@@ -33,10 +32,6 @@ class Conversation(Base):
         nullable=False,
     )
 
-    user: Mapped[Optional["User"]] = relationship(
-        "User",
-        back_populates="conversations",
-    )
     messages: Mapped[List[ChatMessage]] = relationship(
         "ChatMessage",
         back_populates="conversation",

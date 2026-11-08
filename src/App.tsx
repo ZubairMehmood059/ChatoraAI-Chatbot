@@ -22,6 +22,14 @@ import { NotFoundPage } from './components/pages/NotFoundPage';
 import { AuthModal, AuthModalView } from './components/modals/AuthModal';
 import { useAuth } from './context/AuthContext';
 import { MotionConfig } from 'motion/react';
+import {
+  clearGuestConversations,
+  deleteGuestConversation,
+  getGuestConversation,
+  getGuestConversations,
+  saveGuestConversation,
+  updateGuestConversation,
+} from './services/guestConversations';
 
 export default function App() {
   // Client-side router hook
@@ -76,35 +84,49 @@ export default function App() {
   }, [responseLanguage]);
 
   // Health and Model status
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'unconfigured' | 'offline'>('checking');
+  const [authBackendConfigured, setAuthBackendConfigured] = useState<boolean | null>(null);
   const [modelName, setModelName] = useState<string>('gemini-3.5-flash-lite');
 
   useEffect(() => {
     let isMounted = true;
+    let apiReachable = false;
     const checkHealth = async () => {
       try {
         const data = await api.getHealth();
         if (isMounted) {
+          apiReachable = true;
+          setAuthBackendConfigured(Boolean(data.authConfigured));
+          if (data.model) setModelName(data.model);
           if (data.status === 'ok' && data.configured) {
             setBackendStatus('online');
-            if (data.model) setModelName(data.model);
+          } else if (data.status === 'ok') {
+            setBackendStatus('unconfigured');
           } else {
             setBackendStatus('offline');
           }
         }
       } catch {
         if (isMounted) {
+          apiReachable = false;
           setBackendStatus('offline');
+          setAuthBackendConfigured(null);
         }
       }
     };
 
     checkHealth();
-    // Periodic health poll every 30 seconds
-    const interval = setInterval(checkHealth, 30000);
+    let timer: ReturnType<typeof setTimeout>;
+    const pollHealth = async () => {
+      await checkHealth();
+      if (isMounted) {
+        timer = setTimeout(pollHealth, apiReachable ? 30000 : 5000);
+      }
+    };
+    timer = setTimeout(pollHealth, 5000);
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      clearTimeout(timer);
     };
   }, []);
 
@@ -112,6 +134,7 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const conversationLoadGenerationRef = useRef(0);
 
   // Composer and streaming state
   const [input, setInput] = useState('');
@@ -122,6 +145,8 @@ export default function App() {
   const [isTakingLonger, setIsTakingLonger] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const waitingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const requestGenerationRef = useRef(0);
+  const streamingTextRef = useRef('');
 
   // Modals & Popups
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -163,13 +188,23 @@ export default function App() {
 
   // Fetch conversations list via api service
   const loadConversations = useCallback(async () => {
+    const loadGeneration = ++conversationLoadGenerationRef.current;
+    if (!user) {
+      setConversations(getGuestConversations().map(conversation => conversation.summary));
+      return;
+    }
+
     try {
       const data = await api.getConversations();
-      setConversations(data);
+      if (loadGeneration === conversationLoadGenerationRef.current) {
+        setConversations(data);
+      }
     } catch (err) {
-      console.error('Failed to load conversations:', err);
+      if (loadGeneration === conversationLoadGenerationRef.current) {
+        console.error('Failed to load conversations:', err);
+      }
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadConversations();
@@ -177,6 +212,26 @@ export default function App() {
 
   // Load selected conversation
   const selectConversation = useCallback(async (id: string) => {
+    requestGenerationRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
+    setIsWaiting(false);
+    setIsStreaming(false);
+    setStreamingText('');
+    streamingTextRef.current = '';
+    if (!user) {
+      const conversation = getGuestConversation(id);
+      if (!conversation) {
+        console.error('Guest conversation was not found in local history.');
+        return;
+      }
+      setActiveConversationId(conversation.summary.id);
+      setMessages(conversation.messages);
+      setShowJumpToBottom(false);
+      return;
+    }
+
     try {
       const data = await api.getConversation(id);
       setActiveConversationId(data.id);
@@ -185,10 +240,18 @@ export default function App() {
     } catch (err) {
       console.error('Failed to load conversation details:', err);
     }
-  }, []);
+  }, [user]);
 
   // Start new chat
   const handleNewChat = useCallback(() => {
+    requestGenerationRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
+    setIsWaiting(false);
+    setIsStreaming(false);
+    setStreamingText('');
+    streamingTextRef.current = '';
     setActiveConversationId(null);
     setMessages([]);
     setInput('');
@@ -250,7 +313,8 @@ export default function App() {
   };
 
   // Send Message with Reusable API Service Layer
-  const handleSendMessage = async (directPrompt?: string) => {
+  const handleSendMessage = async (directPrompt?: string, priorMessages: Message[] = messages) => {
+    if (abortControllerRef.current) return;
     const rawInput = directPrompt !== undefined ? directPrompt : input;
     const trimmed = rawInput.trim();
     if (!trimmed && !attachedFile) return;
@@ -260,17 +324,17 @@ export default function App() {
       fullPrompt = `[Attached Document: ${attachedFile.name}]\n\`\`\`\n${attachedFile.content}\n\`\`\`\n\n${trimmed || 'Please review and summarize or answer based on this document.'}`;
     }
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    const requestGeneration = ++requestGenerationRef.current;
+    const isCurrentRequest = () => requestGenerationRef.current === requestGeneration;
 
     setInput('');
     setAttachedFile(null);
     setIsWaiting(true);
     setIsTakingLonger(false);
     setStreamingText('');
+    streamingTextRef.current = '';
 
     waitingTimerRef.current = setTimeout(() => {
       setIsTakingLonger(true);
@@ -282,30 +346,23 @@ export default function App() {
       setActiveConversationId(currentConvoId);
     }
 
-    // Immediately display conversation in sidebar so it appears without waiting for streaming to end
     const initialPreviewTitle = trimmed.slice(0, 36).replace(/\n+/g, ' ').trim() || 'New Conversation';
-    setConversations(prev => {
-      const existing = prev.find(c => c.id === currentConvoId);
-      if (existing) {
-        return prev.map(c =>
-          c.id === currentConvoId
-            ? { ...c, updatedAt: new Date().toISOString(), snippet: trimmed.slice(0, 80) }
-            : c
-        );
-      }
-      return [
-        {
-          id: currentConvoId!,
-          title: initialPreviewTitle,
-          pinned: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          messageCount: 1,
-          snippet: trimmed.slice(0, 80),
-        },
-        ...prev,
-      ];
-    });
+    const existingConversation = conversations.find(conversation => conversation.id === currentConvoId);
+    const conversationTimestamp = new Date().toISOString();
+    const summary: ConversationSummary = {
+      id: currentConvoId,
+      title: existingConversation?.title || initialPreviewTitle,
+      pinned: existingConversation?.pinned || false,
+      createdAt: existingConversation?.createdAt || conversationTimestamp,
+      updatedAt: conversationTimestamp,
+      messageCount: priorMessages.length + 1,
+      snippet: trimmed.slice(0, 80),
+      userId: existingConversation?.userId,
+    };
+    setConversations(prev => [
+      summary,
+      ...prev.filter(conversation => conversation.id !== currentConvoId),
+    ]);
 
     const userMsg: Message = {
       id: 'msg_u_' + Date.now(),
@@ -314,16 +371,24 @@ export default function App() {
       timestamp: new Date().toISOString(),
     };
 
-    const nextMessages = [...messages, userMsg];
+    const nextMessages = [...priorMessages, userMsg];
+    if (!user) {
+      try {
+        saveGuestConversation(summary, nextMessages);
+      } catch (error) {
+        console.error('Failed to save guest conversation locally:', error);
+        showToast('This conversation could not be saved in this browser.', 'error');
+      }
+    }
     setMessages(nextMessages);
     setTimeout(() => scrollToBottom(true), 50);
 
     try {
       await api.streamChat(
         {
-          conversationId: currentConvoId,
+          conversationId: user ? currentConvoId : undefined,
           message: fullPrompt,
-          history: nextMessages.slice(-8),
+          history: priorMessages.slice(-10),
           responseStyle,
           responseLanguage,
         },
@@ -332,12 +397,16 @@ export default function App() {
             // Stream initiated
           },
           onChunk: (chunkText) => {
+            if (!isCurrentRequest()) return;
             setIsWaiting(false);
             setIsStreaming(true);
             if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
+            streamingTextRef.current += chunkText;
             setStreamingText(prev => prev + chunkText);
           },
           onDone: (fullText) => {
+            if (!isCurrentRequest()) return;
+            if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
             const assistantMsg: Message = {
               id: 'msg_a_' + Date.now(),
               role: 'assistant',
@@ -345,13 +414,38 @@ export default function App() {
               timestamp: new Date().toISOString(),
               status: 'complete',
             };
-            setMessages([...nextMessages, assistantMsg]);
+            setMessages(prev => [...prev, assistantMsg]);
+            if (!user) {
+              const latestMessage = assistantMsg.content || nextMessages[nextMessages.length - 1]?.content || '';
+              const updatedSummary = {
+                ...summary,
+                updatedAt: assistantMsg.timestamp,
+                messageCount: nextMessages.length + 1,
+                snippet: latestMessage.slice(0, 80),
+              };
+              try {
+                saveGuestConversation(updatedSummary, [...nextMessages, assistantMsg]);
+                setConversations(prev => [
+                  updatedSummary,
+                  ...prev.filter(conversation => conversation.id !== currentConvoId),
+                ]);
+              } catch (error) {
+                console.error('Failed to update guest conversation locally:', error);
+                showToast('This conversation could not be saved in this browser.', 'error');
+              }
+            }
+            setIsWaiting(false);
             setIsStreaming(false);
+            setIsTakingLonger(false);
             setStreamingText('');
+            streamingTextRef.current = '';
+            abortControllerRef.current = null;
             loadConversations();
             setTimeout(() => scrollToBottom(true), 50);
           },
           onError: (err, reqId) => {
+            if (!isCurrentRequest()) return;
+            if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
             const errMsg: Message = {
               id: 'msg_err_' + Date.now(),
               role: 'assistant',
@@ -361,14 +455,19 @@ export default function App() {
               error: err.message,
               requestId: reqId || 'req_' + Math.random().toString(36).substring(2, 9),
             };
-            setMessages([...nextMessages, errMsg]);
+            setMessages(prev => [...prev, errMsg]);
             setIsWaiting(false);
             setIsStreaming(false);
+            setIsTakingLonger(false);
+            setStreamingText('');
+            streamingTextRef.current = '';
+            abortControllerRef.current = null;
           },
         },
         controller.signal
       );
     } catch (err: unknown) {
+      if (!isCurrentRequest()) return;
       if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
       setIsWaiting(false);
       setIsStreaming(false);
@@ -382,16 +481,18 @@ export default function App() {
           err.name === 'AbortError');
 
       if (isAbort) {
-        if (streamingText) {
+        const partialText = streamingTextRef.current;
+        if (partialText) {
           const stoppedMsg: Message = {
             id: 'msg_a_' + Date.now(),
             role: 'assistant',
-            content: streamingText,
+            content: partialText,
             timestamp: new Date().toISOString(),
             status: 'stopped',
           };
-          setMessages([...nextMessages, stoppedMsg]);
+          setMessages(prev => [...prev, stoppedMsg]);
           setStreamingText('');
+          streamingTextRef.current = '';
           showToast('Generation stopped by user.', 'info');
         } else {
           const stoppedMsg: Message = {
@@ -401,11 +502,25 @@ export default function App() {
             timestamp: new Date().toISOString(),
             status: 'stopped',
           };
-          setMessages([...nextMessages, stoppedMsg]);
+          setMessages(prev => [...prev, stoppedMsg]);
           showToast('Generation stopped by user.', 'info');
         }
+        abortControllerRef.current = null;
         return;
       }
+
+      const errorMessage = err instanceof Error ? err.message : 'The request could not be completed.';
+      setMessages(prev => [...prev, {
+        id: 'msg_err_' + Date.now(),
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        error: errorMessage,
+      }]);
+      streamingTextRef.current = '';
+      setStreamingText('');
+      abortControllerRef.current = null;
     }
   };
 
@@ -431,10 +546,7 @@ export default function App() {
 
     const trimmedMessages = messages.slice(0, realIndex);
     setMessages(trimmedMessages);
-    setInput(userMessage.content);
-    setTimeout(() => {
-      handleSendMessage();
-    }, 50);
+    void handleSendMessage(userMessage.content, trimmedMessages);
   };
 
   // Retry from Error card
@@ -443,19 +555,25 @@ export default function App() {
     const lastUser = filtered.filter(m => m.role === 'user').pop();
     if (!lastUser) return;
 
-    setMessages(filtered.slice(0, -1));
-    setInput(lastUser.content);
-    setTimeout(() => {
-      handleSendMessage();
-    }, 50);
+    const priorMessages = filtered.slice(0, -1);
+    setMessages(priorMessages);
+    void handleSendMessage(lastUser.content, priorMessages);
   };
 
   // Conversation Management Handlers via API Service
   const handleConfirmRename = async (newTitle: string) => {
     try {
-      await api.renameConversation(renameModal.id, newTitle);
+      if (user) {
+        await api.renameConversation(renameModal.id, newTitle);
+      } else {
+        updateGuestConversation(renameModal.id, summary => ({ ...summary, title: newTitle }));
+        setConversations(prev =>
+          prev.map(conversation =>
+            conversation.id === renameModal.id ? { ...conversation, title: newTitle } : conversation
+          )
+        );
+      }
       setRenameModal({ isOpen: false, id: '', title: '' });
-      loadConversations();
       showToast('Conversation renamed.', 'success');
     } catch {
       showToast('Failed to rename conversation.', 'error');
@@ -464,8 +582,15 @@ export default function App() {
 
   const handleTogglePin = async (id: string, pinned: boolean) => {
     try {
-      await api.togglePinConversation(id, pinned);
-      loadConversations();
+      if (user) {
+        await api.togglePinConversation(id, pinned);
+        loadConversations();
+      } else {
+        updateGuestConversation(id, summary => ({ ...summary, pinned }));
+        setConversations(prev =>
+          prev.map(conversation => (conversation.id === id ? { ...conversation, pinned } : conversation))
+        );
+      }
       showToast(pinned ? 'Chat pinned to top.' : 'Chat unpinned.', 'success');
     } catch {
       showToast('Failed to update pin status.', 'error');
@@ -478,7 +603,11 @@ export default function App() {
         setConversations([]);
         setDeleteModal({ isOpen: false, title: '' });
         handleNewChat();
-        await api.clearAllConversations();
+        if (user) {
+          await api.clearAllConversations();
+        } else {
+          clearGuestConversations();
+        }
         showToast('All conversations cleared.', 'success');
       } catch {
         loadConversations();
@@ -492,7 +621,11 @@ export default function App() {
           handleNewChat();
         }
         setDeleteModal({ isOpen: false, title: '' });
-        await api.deleteConversation(targetId);
+        if (user) {
+          await api.deleteConversation(targetId);
+        } else {
+          deleteGuestConversation(targetId);
+        }
         showToast('Conversation deleted.', 'success');
       } catch {
         loadConversations();
@@ -737,6 +870,7 @@ export default function App() {
               textareaRef={textareaRef}
               responseStyle={responseStyle}
               onSetResponseStyle={setResponseStyle}
+              responseLanguage={responseLanguage}
             />
           </footer>
         </div>
@@ -790,6 +924,7 @@ export default function App() {
         <AuthModal
           isOpen={authModal.isOpen}
           initialView={authModal.view}
+          backendConfigured={authBackendConfigured}
           onClose={() => setAuthModal(prev => ({ ...prev, isOpen: false }))}
           onSuccess={() => {
             loadConversations();

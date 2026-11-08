@@ -11,6 +11,7 @@ def test_health_endpoint(client: TestClient):
     assert data["version"] == "1.0.0"
     assert "model" in data
     assert isinstance(data["configured"], bool)
+    assert isinstance(data["authConfigured"], bool)
     assert "timestamp" in data
 
 

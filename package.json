@@ -4,9 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outdir=dist --packages=external",
-    "start": "node dist/server.js",
+    "dev": "node scripts/dev.mjs",
+    "dev:vite": "vite --host 0.0.0.0",
+    "dev:express": "tsx server.ts",
+    "build": "vite build",
+    "build:express": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outdir=dist --packages=external",
+    "start:express": "node dist/server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

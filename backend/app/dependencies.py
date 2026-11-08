@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 import httpx
@@ -30,17 +29,8 @@ async def get_optional_user(
     if not token:
         return None
 
-    # 1. Handle local demo tokens (e.g., demo_jwt_user_alice_12345)
-    if token.startswith("demo_jwt_"):
-        raw_demo = token[len("demo_jwt_") :]
-        demo_id = re.sub(r"_\d+$", "", raw_demo) or "user_demo"
-        return UserContext(
-            id=demo_id,
-            email=f"{demo_id}@chatora.ai",
-            role="authenticated",
-        )
-
-    # 2. Handle Supabase JWT verification when configured
+    # Verify bearer credentials with Supabase; never derive a user identity
+    # from a caller-controlled token string.
     if settings.is_supabase_configured:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -48,7 +38,7 @@ async def get_optional_user(
                     f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/user",
                     headers={
                         "Authorization": f"Bearer {token}",
-                        "apikey": settings.SUPABASE_ANON_KEY or settings.SUPABASE_SERVICE_ROLE_KEY,
+                        "apikey": settings.SB_SECRET_KEY or settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY,
                     },
                 )
                 if res.status_code == 200:
@@ -73,7 +63,7 @@ async def get_optional_user(
                 detail="Failed to verify authentication token",
             )
 
-    # 3. Unrecognized token without valid provider
+    # Reject credentials when no verification provider is configured.
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired authentication token",

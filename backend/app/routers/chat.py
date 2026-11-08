@@ -47,6 +47,14 @@ async def chat_stream(
     # 2. Check conversation ownership before opening SSE stream
     conversation_id = payload.conversationId
     if conversation_id:
+        if user is None:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={
+                    "error": "Sign in to continue a saved conversation",
+                    "requestId": request_id,
+                },
+            )
         try:
             # Verify authorization; throws 403 if user lacks access
             await db_service.get_conversation(db=db, convo_id=conversation_id, user_id=user_id)
@@ -75,8 +83,9 @@ async def chat_stream(
             },
         )
 
-    # 4. Save initial user message in database immediately
-    if conversation_id:
+    # 4. Persist only authenticated conversations. Guests use client-side,
+    # transient state and never receive a shared server-side history.
+    if conversation_id and user_id:
         try:
             await db_service.append_message(
                 db=db,
@@ -87,8 +96,15 @@ async def chat_stream(
             )
             await db.commit()
         except Exception as e:
-            logger.error("Failed saving initial user message: %s", e)
+            logger.error("Failed saving initial user message (request_id=%s)", request_id)
             await db.rollback()
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "error": "Could not save your message. Please retry.",
+                    "requestId": request_id,
+                },
+            )
 
     # 5. Define SSE generator
     async def event_generator() -> AsyncGenerator[str, None]:
@@ -117,12 +133,12 @@ async def chat_stream(
                     yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
 
             # Auto-generate title if this is the first turn
-            if conversation_id and full_text:
+            if conversation_id and user_id and full_text:
                 if not payload.history or len(payload.history) <= 1:
                     updated_title = await ai_service.generate_title(message)
 
             # Persist assistant response in independent database session
-            if conversation_id and full_text:
+            if conversation_id and user_id and full_text:
                 async with async_session_factory() as save_db:
                     try:
                         msg_status = "complete" if is_client_connected else "stopped"

@@ -18,6 +18,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
 
   const handleProcessFile = (file: File) => {
     setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (file.size > 2 * 1024 * 1024) {
       setError('File size exceeds the 2MB limit. Please upload a smaller document.');
       return;
@@ -35,9 +36,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
 
     reader.onload = async () => {
       try {
-        const textContent = reader.result as string;
+        if (typeof reader.result !== 'string' || !reader.result) {
+          throw new Error('The selected file could not be read.');
+        }
+        const fileContent = reader.result;
         // Verify with server endpoint via api client
-        const data = await api.uploadFile(file.name, textContent, file.type);
+        const data = await api.uploadFile(file.name, fileContent, file.type || ext);
         onFileAttached({
           name: file.name,
           size: file.size,
@@ -56,7 +60,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
       setError('Could not read file contents from device.');
     };
 
-    reader.readAsText(file);
+    if (ext === '.pdf') {
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -100,6 +108,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
           </h2>
           <button
             onClick={onClose}
+            disabled={isProcessing}
             className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
             style={{ color: 'var(--text-muted)' }}
           >
@@ -115,6 +124,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
               borderColor: 'var(--error)',
               color: 'var(--error)',
             }}
+            role="alert"
           >
             <AlertCircle size={15} className="shrink-0 mt-0.5" />
             <span>{error}</span>
@@ -140,6 +150,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
           <input
             ref={fileInputRef}
             type="file"
+            disabled={isProcessing}
             accept=".txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.pdf"
             className="hidden"
             onChange={e => {
@@ -167,6 +178,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFil
         <div className="mt-4 flex justify-end">
           <button
             onClick={onClose}
+            disabled={isProcessing}
             className="px-4 py-2 rounded-xl text-xs font-medium border cursor-pointer hover:bg-black/5 dark:hover:bg-white/5"
             style={{ borderColor: 'var(--border-strong)' }}
           >

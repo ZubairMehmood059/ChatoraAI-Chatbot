@@ -10,23 +10,23 @@ def test_unauthenticated_me(client: TestClient):
     assert response.json()["user"] is None
 
 
-def test_authenticated_demo_token(client: TestClient):
-    """Verify demo token restoration works seamlessly."""
-    headers = {"Authorization": "Bearer demo_jwt_user_alice_456"}
+def test_authenticated_test_identity(client: TestClient):
+    """Verify only the test app's explicit identity override recognizes test users."""
+    headers = {"Authorization": "Bearer test-user-user_alice"}
     response = client.get("/api/auth/me", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["authenticated"] is True
     assert data["user"]["id"] == "user_alice"
-    assert data["user"]["email"] == "user_alice@chatora.ai"
+    assert data["user"]["email"] == "user_alice@tests.invalid"
 
 
 def test_invalid_token_rejected(client: TestClient):
-    """Verify invalid/unrecognized token format is rejected with 401."""
-    headers = {"Authorization": "Bearer totally_invalid_token_12345"}
+    """Verify self-asserted demo tokens are not accepted as authentication."""
+    headers = {"Authorization": "Bearer demo_jwt_user_admin_12345"}
     response = client.get("/api/auth/me", headers=headers)
     assert response.status_code == 401
-    assert "Invalid or expired" in response.json()["error"]
+    assert "Invalid" in response.json()["error"]
 
 
 def test_local_registration_and_login_lifecycle(client: TestClient):

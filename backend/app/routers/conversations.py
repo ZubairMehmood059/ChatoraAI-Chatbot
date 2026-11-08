@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.database import get_db
 from backend.app.dependencies import UserContext, get_optional_user
@@ -32,7 +32,12 @@ async def create_conversation(
     db: AsyncSession = Depends(get_db),
 ) -> ConversationDetail:
     """Create a new conversation assigned to the requesting user."""
-    user_id = user.id if user else None
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to save conversation history",
+        )
+    user_id = user.id
     return await db_service.create_conversation(db=db, title=payload.title, user_id=user_id)
 
 

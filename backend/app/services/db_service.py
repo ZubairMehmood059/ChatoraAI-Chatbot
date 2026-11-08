@@ -25,16 +25,16 @@ class DatabaseService:
         search: Optional[str] = None,
     ) -> List[ConversationSummary]:
         """List conversations scoped strictly to the authenticated user or guest."""
+        if not user_id or user_id == "guest":
+            return []
+
         stmt = (
             select(Conversation)
             .options(selectinload(Conversation.messages))
             .order_by(Conversation.pinned.desc(), Conversation.updated_at.desc())
         )
 
-        if user_id and user_id != "guest":
-            stmt = stmt.where(Conversation.user_id == user_id)
-        else:
-            stmt = stmt.where(Conversation.user_id.is_(None))
+        stmt = stmt.where(Conversation.user_id == user_id)
 
         if search and search.strip():
             stmt = stmt.where(Conversation.title.ilike(f"%{search.strip()}%"))
@@ -78,12 +78,11 @@ class DatabaseService:
             )
 
         # Enforce user authorization: prevent IDOR/BOLA
-        if convo.user_id is not None:
-            if not user_id or user_id != convo.user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Forbidden: You do not have permission to view this conversation",
-                )
+        if not user_id or user_id != convo.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You do not have permission to view this conversation",
+            )
 
         return convo.to_detail()
 
@@ -110,12 +109,11 @@ class DatabaseService:
                 detail="Conversation not found",
             )
 
-        if convo.user_id is not None:
-            if not user_id or user_id != convo.user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Forbidden: You do not have permission to modify this conversation",
-                )
+        if not user_id or user_id != convo.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You do not have permission to modify this conversation",
+            )
 
         if title is not None and title.strip():
             convo.title = title.strip()
@@ -143,12 +141,11 @@ class DatabaseService:
                 detail="Conversation not found",
             )
 
-        if convo.user_id is not None:
-            if not user_id or user_id != convo.user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Forbidden: You do not have permission to delete this conversation",
-                )
+        if not user_id or user_id != convo.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You do not have permission to delete this conversation",
+            )
 
         await db.delete(convo)
         await db.flush()
@@ -161,10 +158,9 @@ class DatabaseService:
     ) -> int:
         """Delete all conversations belonging exclusively to requesting user or guest."""
         stmt = delete(Conversation)
-        if user_id and user_id != "guest":
-            stmt = stmt.where(Conversation.user_id == user_id)
-        else:
-            stmt = stmt.where(Conversation.user_id.is_(None))
+        if not user_id or user_id == "guest":
+            return 0
+        stmt = stmt.where(Conversation.user_id == user_id)
 
         res = await db.execute(stmt)
         await db.flush()
@@ -256,6 +252,11 @@ class DatabaseService:
         convo = res.scalar_one_or_none()
 
         if not convo:
+            if not user_id or user_id == "guest":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Sign in to save conversation history",
+                )
             # Auto-create conversation if it does not exist yet
             convo = Conversation.create_new(
                 title=content.strip()[:36].replace("\n", " ") or "New Chat",
@@ -266,12 +267,11 @@ class DatabaseService:
             await db.flush()
         else:
             # Authorize ownership if conversation has owner
-            if convo.user_id is not None:
-                if not user_id or user_id != convo.user_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Forbidden: You do not have permission to post to this conversation",
-                    )
+            if not user_id or user_id != convo.user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: You do not have permission to post to this conversation",
+                )
 
         msg = ChatMessage.create_new(
             conversation_id=convo_id,

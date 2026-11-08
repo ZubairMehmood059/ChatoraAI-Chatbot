@@ -11,6 +11,10 @@ class HealthResponse(BaseModel):
     service: str = Field(default="Chatora AI", description="Service name")
     model: str = Field(description="Active Gemini model name")
     configured: bool = Field(description="Whether the AI provider is configured")
+    authConfigured: bool = Field(
+        default=False,
+        description="Whether the backend can validate Supabase bearer tokens",
+    )
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO 8601 server timestamp",

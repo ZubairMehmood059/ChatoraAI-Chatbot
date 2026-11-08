@@ -61,18 +61,6 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
     return next();
   }
 
-  // Support demo JWT format for local testing / demo accounts
-  if (token.startsWith('demo_jwt_')) {
-    const rawDemo = token.slice('demo_jwt_'.length);
-    const demoId = rawDemo.replace(/_\d+$/, '') || 'user_demo';
-    req.user = {
-      id: demoId,
-      email: `${demoId}@chatora.ai`,
-      role: 'authenticated',
-    };
-    return next();
-  }
-
   if (supabaseServer) {
     try {
       const { data, error } = await supabaseServer.auth.getUser(token);

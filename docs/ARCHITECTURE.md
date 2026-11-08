@@ -1,5 +1,7 @@
 # Chatora AI Architecture Specification
 
+> **Architecture notice (2026-11-08):** This document contains historical diagrams and examples for legacy Express/Flask deployments. The supported application path is React/Vite → FastAPI (`backend/app/main.py`) → Gemini, with Supabase bearer-token verification and SQLAlchemy persistence. Use the current local/deployment instructions in `README.md`; `vite.config.ts` proxies `/api/*` and `/health` to FastAPI during development. The Express and Flask implementations remain legacy exports and are not claimed to have feature parity.
+
 Chatora AI is architected for high-performance conversational intelligence, minimalist visual design, and flexible hosting.
 
 ---
@@ -46,11 +48,12 @@ Chatora AI is architected for high-performance conversational intelligence, mini
 ## 2. Authoritative Backend Details
 
 ### In Google AI Studio: `server.ts`
+
 - **Why it is Authoritative:**
   Google AI Studio supervisor starts `npm run dev` (`tsx server.ts`) inside a Node.js container on port 3000. `server.ts` directly handles all client API requests and mounts Vite middlewares to compile and serve the React frontend without a separate build step.
 - **API Surface:**
   - `GET /health` — Verifies server health and Gemini configuration.
-  - `POST /api/chat` — Server-Sent Events (SSE) streaming proxy. Passes conversation history, applies style parameters (*Concise*, *Balanced*, *Detailed*), generates titles, and stops generation when the client aborts.
+  - `POST /api/chat` — Server-Sent Events (SSE) streaming proxy. Passes conversation history, applies style parameters (_Concise_, _Balanced_, _Detailed_), generates titles, and stops generation when the client aborts.
   - `GET /api/conversations` — Summarizes existing conversations.
   - `POST /api/conversations` — Creates a new conversation.
   - `GET /api/conversations/:id` — Retrieves all messages in a conversation.
@@ -61,6 +64,7 @@ Chatora AI is architected for high-performance conversational intelligence, mini
   - `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me` — User authentication endpoints.
 
 ### In Dedicated Python Hosting: `app.py`
+
 - When deployed to a Python environment (e.g., Render, Railway, AWS, or local virtualenv), `python app.py` serves the Flask application factory with identical routes, Jinja templates in `templates/`, and SQLite or PostgreSQL database models.
 
 ---
@@ -71,15 +75,15 @@ All frontend requests use relative paths (`/api/*`), ensuring seamless routing r
 
 ```ts
 // Example: Sending a message with SSE
-const response = await fetch('/api/chat', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+const response = await fetch("/api/chat", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
   signal: abortController.signal,
   body: JSON.stringify({
     conversationId,
     message,
     history: contextMessages,
-    responseStyle: 'balanced',
+    responseStyle: "balanced",
   }),
 });
 ```
@@ -89,6 +93,7 @@ const response = await fetch('/api/chat', {
 ## 4. Forbidden-Color Architecture
 
 Chatora AI strictly complies with the design specification:
+
 - **Prohibited hues:** Blue, navy, indigo, purple, violet, cyan, teal, lavender, periwinkle.
 - **Approved tokens:**
   - Primary Forest Green: `--primary: #315C43` (light) / `#A7B7A0` (dark)

@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 import secrets
 from typing import Any, Dict, Optional
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import DateTime, Index, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
 from backend.app.models.base import Base
 
 
@@ -17,7 +17,6 @@ class Feedback(Base):
     ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     user_id: Mapped[Optional[str]] = mapped_column(
         String(64),
-        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -25,11 +24,6 @@ class Feedback(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
-    )
-
-    user: Mapped[Optional["User"]] = relationship(
-        "User",
-        back_populates="feedback",
     )
 
     __table_args__ = (

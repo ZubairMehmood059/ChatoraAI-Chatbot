@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 import hashlib
 import secrets
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from sqlalchemy import DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from backend.app.models.base import Base
 
 
@@ -24,18 +24,6 @@ class User(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-    )
-
-    conversations: Mapped[List["Conversation"]] = relationship(
-        "Conversation",
-        back_populates="user",
-        cascade="all, delete-orphan",
-        lazy="selectin",
-    )
-    feedback: Mapped[List["Feedback"]] = relationship(
-        "Feedback",
-        back_populates="user",
-        lazy="selectin",
     )
 
     @classmethod
